@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>麻雀 符計算・点数計算 完全特化トレーナー</title>
+  <title>麻雀 点数計算トレーナー</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700;800;900&family=Noto+Sans+JP:wght@500;600;700;800;900&family=Noto+Serif+JP:wght@700;900&family=Shippori+Mincho+B1:wght@800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@600;700;800;900&family=Noto+Sans+JP:wght@500;700;800;900&family=Noto+Serif+JP:wght@700;900&family=Shippori+Mincho+B1:wght@800&display=swap" rel="stylesheet">
   <style>
     * {
       -webkit-tap-highlight-color: transparent;
@@ -20,408 +20,297 @@
       overflow-x: hidden;
       touch-action: manipulation;
     }
-    /* Bright, clean light-toned table board */
-    .bright-table-board {
-      background: linear-gradient(180deg, #f0fdf4 0%, #ecfdf5 55%, #e2e8f0 100%);
-      border: 2px solid #cbd5e1;
-      box-shadow: inset 0 2px 6px rgba(15, 23, 42, 0.04), 0 4px 16px rgba(15, 23, 42, 0.05);
+    /* Enforce single-line text everywhere */
+    .nowrap-strict {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
-    .tile-rack-bright {
-      background: #ffffff;
-      border: 2px solid #cbd5e1;
-      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+    /* Strictly 1-Row Hand Container: Never wraps even on 320px screens */
+    .hand-single-row {
+      display: flex;
+      flex-wrap: nowrap;
+      align-items: flex-end;
+      justify-content: center;
+      width: 100%;
+      gap: 2px;
+      padding-top: 14px;
     }
-    /* Responsive Single-Row Hand Layout */
-    .hand-row-fluid {
+    /* Each upright tile (100x138) scales fluidly within the single row */
+    .tile-fluid-item {
+      position: relative;
+      flex: 100 1 0%;
+      aspect-ratio: 100 / 138;
+      min-width: 0;
+      max-width: 40px;
       display: flex;
       align-items: flex-end;
       justify-content: center;
-      flex-wrap: wrap;
-      gap: 3px;
+    }
+    /* Each sideways called tile (138x100) scales proportionally (1.38x width of upright) */
+    .tile-fluid-sideways {
+      position: relative;
+      flex: 138 1 0%;
+      aspect-ratio: 138 / 100;
+      min-width: 0;
+      max-width: 55.2px;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+    }
+    .tile-fluid-item svg,
+    .tile-fluid-sideways svg {
       width: 100%;
+      height: 100%;
+      display: block;
+    }
+    .win-tile-badge {
+      position: absolute;
+      top: -14px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 9px;
+      font-weight: 900;
+      color: #b45309;
+      line-height: 1;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+    /* Small gap before open melds or winning tile */
+    .tile-group-gap {
+      margin-left: 5px;
     }
     @media (min-width: 640px) {
-      .hand-row-fluid {
-        gap: 5px;
+      .tile-group-gap {
+        margin-left: 10px;
       }
     }
-    @keyframes fadeSlideUp {
-      0% { opacity: 0; transform: translateY(6px); }
-      100% { opacity: 1; transform: translateY(0); }
-    }
-    .anim-appear {
-      animation: fadeSlideUp 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-    }
-    .no-scrollbar::-webkit-scrollbar { display: none; }
-    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     .score-input-box {
-      transition: all 0.15s ease;
+      transition: all 0.12s ease;
+      white-space: nowrap;
     }
     .score-input-active {
       border-color: #059669 !important;
       background-color: #ecfdf5 !important;
-      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.22);
+      box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
     }
     .tenkey-btn {
       user-select: none;
       -webkit-user-select: none;
-      transition: transform 0.06s ease, background-color 0.12s ease;
+      white-space: nowrap;
+      transition: transform 0.05s ease, background-color 0.1s ease;
     }
     .tenkey-btn:active {
-      transform: scale(0.95);
+      transform: scale(0.96);
     }
   </style>
 </head>
-<body class="min-h-screen flex flex-col bg-slate-50 text-slate-900 pb-8">
+<body class="min-h-screen flex flex-col bg-slate-50 text-slate-900">
 
-  <!-- Bright Sticky Header -->
-  <header class="sticky top-0 z-40 bg-white/95 backdrop-blur border-b border-slate-200 px-3 py-2 shadow-sm">
-    <div class="max-w-3xl mx-auto flex items-center justify-between gap-2">
-      <!-- App Title -->
-      <div class="flex items-center gap-2 min-w-0">
-        <div class="w-8 h-8 rounded-xl bg-emerald-600 flex items-center justify-center shadow-sm shrink-0">
-          <span class="font-serif font-black text-base text-white leading-none">点</span>
-        </div>
-        <div class="truncate">
-          <h1 class="text-sm sm:text-base font-black tracking-tight text-slate-900 truncate">麻雀 点数計算トレーナー</h1>
-          <p class="text-[10px] sm:text-[11px] text-slate-500 font-bold truncate">連風牌雀頭2符 / 30符4飜・40符3飜は切り上げ満貫</p>
-        </div>
+  <!-- 1-Line Clean Header -->
+  <header class="sticky top-0 z-40 bg-white border-b border-slate-200 px-3 py-2 shadow-sm">
+    <div class="max-w-xl mx-auto flex items-center justify-between gap-2 whitespace-nowrap">
+      <div class="flex items-center gap-1.5 min-w-0">
+        <span class="w-6 h-6 rounded-md bg-emerald-600 text-white font-serif font-black text-xs flex items-center justify-center shrink-0">点</span>
+        <h1 class="text-sm sm:text-base font-black text-slate-900 truncate">麻雀 点数計算</h1>
+        <span id="mode-indicator-pill" class="hidden px-1.5 py-0.5 rounded bg-rose-600 text-white font-black text-[10px] shrink-0">復習中</span>
       </div>
 
-      <!-- Utility Buttons & Score Streak -->
       <div class="flex items-center gap-1.5 shrink-0">
-        <div class="hidden sm:flex items-center gap-2 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-xl text-xs font-bold mr-1">
-          <span>🔥 連続 <strong id="stat-streak" class="text-amber-600 font-black">0</strong></span>
-          <span class="text-slate-300">|</span>
-          <span>正解 <strong id="stat-accuracy" class="text-emerald-700 font-black">0/0</strong></span>
-        </div>
-        <button id="btn-open-cheatsheet" type="button" class="px-2.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-xs font-bold text-emerald-800 transition">
-          📖 早見表
+        <button id="btn-toggle-review" type="button" class="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 active:scale-95 text-rose-700 font-black text-[11px] sm:text-xs border border-rose-200 whitespace-nowrap transition">
+          復習 (0問)
         </button>
-        <button id="btn-open-gallery" type="button" class="px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-300 text-xs font-bold text-slate-700 transition">
-          🀄 牌
-        </button>
-        <button id="btn-toggle-guide" type="button" class="px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-300 text-[11px] font-bold text-slate-700 transition">
-          <span id="label-guide-state">記号:OFF</span>
+        <button id="btn-generate-next" type="button" class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 font-bold text-[11px] sm:text-xs border border-slate-300 whitespace-nowrap transition">
+          次へ ↻
         </button>
       </div>
     </div>
   </header>
 
-  <!-- Main Content -->
-  <main class="flex-1 max-w-3xl w-full mx-auto px-2.5 sm:px-4 pt-2.5 pb-6 space-y-2.5">
-
-    <!-- Mobile Stats & Next Problem Bar -->
-    <div class="flex items-center justify-between gap-2 bg-white border border-slate-200 rounded-xl px-3 py-1.5 shadow-sm">
-      <div class="flex items-center gap-2 text-xs font-bold text-slate-700">
-        <span>🔥 連続正解 <strong id="stat-streak-mobile" class="text-amber-600 font-black">0</strong></span>
-        <span class="text-slate-300">|</span>
-        <span>正解率 <strong id="stat-accuracy-mobile" class="text-emerald-700 font-black">0/0 (0%)</strong></span>
-      </div>
-      <button id="btn-generate-next" type="button" class="px-3 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 font-bold text-xs border border-slate-300 flex items-center gap-1 transition">
-        <span>🔄 別の問題へ</span>
-      </button>
+  <!-- 1-Line Centered Stats Bar -->
+  <div class="bg-slate-100 border-b border-slate-200 px-3 py-1.5">
+    <div class="max-w-xl mx-auto flex items-center justify-center gap-3 sm:gap-5 text-[11px] sm:text-xs font-bold text-slate-700 whitespace-nowrap">
+      <span>解答数: <strong id="stat-total" class="text-slate-900 font-black">0問</strong></span>
+      <span class="text-slate-300">｜</span>
+      <span>正解数: <strong id="stat-accuracy" class="text-emerald-700 font-black">0問 (0%)</strong></span>
+      <span class="text-slate-300">｜</span>
+      <span>連続正解: <strong id="stat-streak" class="text-amber-600 font-black">0問</strong></span>
     </div>
+  </div>
+
+  <!-- Main Single-Column Container -->
+  <main class="flex-1 max-w-xl w-full mx-auto px-2.5 sm:px-4 pt-2.5 pb-6 space-y-2.5">
+      <span>解答数: <strong id="stat-total" class="text-slate-900 font-black">0問</strong></span>
+      <span class="text-slate-300">|</span>
+      <span>正解数: <strong id="stat-accuracy" class="text-emerald-700 font-black">0問 (0%)</strong></span>
+      <span class="text-slate-300">|</span>
+      <span>連続正解: <strong id="stat-streak" class="text-amber-600 font-black">0問</strong></span>
+    </div>
+  </div>
+
+  <!-- Main Single-Column Container -->
+  <main class="flex-1 max-w-xl w-full mx-auto px-2 sm:px-4 pt-2 pb-6 space-y-2.5">
 
     <!-- ===============================================================
-         BRIGHT MAHJONG TABLE & HAND DISPLAY (NO SPOILER TAGS)
+         1. SITUATION BAR & SINGLE-ROW HAND RACK
          =============================================================== -->
-    <section class="bright-table-board rounded-2xl p-2.5 sm:p-4 space-y-2.5">
-      <!-- Match Situation Header Bar (Only Pure Match Info) -->
-      <div class="grid grid-cols-3 gap-2 bg-white border border-slate-200/90 rounded-xl p-2 sm:p-2.5 shadow-sm items-center">
-        <!-- 1. Round & Seat Wind + Win Type -->
-        <div class="flex items-center gap-2 min-w-0">
-          <span id="hud-seat-badge" class="px-2 py-1 rounded-lg bg-emerald-600 text-white font-black text-xs shrink-0">
-            東家(親)
+    <section class="bg-white border border-slate-200 rounded-2xl p-2 sm:p-3.5 shadow-sm space-y-2">
+
+      <!-- 1-Row Situation & Dora / Ura-Dora Indicator Bar (Never wraps) -->
+      <div class="flex items-center justify-between gap-1 bg-slate-50 border border-slate-200 rounded-xl px-2 py-1.5 whitespace-nowrap overflow-hidden">
+        <!-- Left: Wind / Win Type / Riichi / Ippatsu badges in 1 line -->
+        <div class="flex items-center gap-1 min-w-0">
+          <span id="hud-wind-badge" class="px-1.5 sm:px-2 py-0.5 rounded-md bg-emerald-600 text-white font-black text-[11px] sm:text-xs shrink-0">
+            東場 東家(親)
           </span>
-          <div class="min-w-0">
-            <div id="hud-round-wind" class="text-xs sm:text-sm font-black text-slate-900 truncate">東1局</div>
-            <div id="hud-win-type" class="text-[11px] font-extrabold text-emerald-700 truncate">ロン和了</div>
-          </div>
+          <span id="hud-win-badge" class="px-1.5 sm:px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 font-black text-[11px] sm:text-xs shrink-0">
+            ツモ
+          </span>
+          <span id="hud-riichi-badge" class="hidden px-1.5 sm:px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 font-black text-[11px] sm:text-xs shrink-0">
+            リーチ
+          </span>
+          <span id="hud-ippatsu-badge" class="hidden px-1.5 sm:px-2 py-0.5 rounded-md bg-purple-600 text-white font-black text-[11px] sm:text-xs shrink-0">
+            一発
+          </span>
         </div>
 
-        <!-- 2. Menzen / Riichi Status -->
-        <div class="flex items-center justify-center border-x border-slate-200 px-2 text-center">
-          <div>
-            <div class="text-[10px] font-bold text-slate-400">状態・リーチ</div>
-            <div id="hud-riichi-status" class="text-xs sm:text-sm font-black text-slate-800">門前・リーチ</div>
+        <!-- Right: Dora & Ura-Dora Indicator Tiles -->
+        <div class="flex items-center gap-1.5 shrink-0">
+          <div class="flex items-center gap-1">
+            <span class="text-[10px] sm:text-[11px] font-bold text-slate-500">ドラ</span>
+            <div id="hud-dora-tile" class="w-5 sm:w-6 flex items-center"></div>
           </div>
-        </div>
-
-        <!-- 3. Dora Indicator & Ura-Dora Indicator (No Dora Count Spoiler!) -->
-        <div class="flex items-center justify-end gap-2 min-w-0">
-          <div class="text-right hidden sm:block">
-            <div class="text-[10px] font-bold text-slate-400">ドラ表示牌</div>
-            <div id="hud-ura-caption" class="text-[10px] font-bold text-slate-400">表 / 裏</div>
-          </div>
-          <div class="flex items-center gap-1 bg-slate-100 border border-slate-200 rounded-lg px-2 py-1 shrink-0">
-            <div class="flex flex-col items-center">
-              <span class="text-[9px] font-bold text-slate-500 leading-none mb-0.5">表ドラ</span>
-              <div id="hud-dora-tile" class="flex items-center"></div>
-            </div>
-            <div class="flex flex-col items-center">
-              <span class="text-[9px] font-bold text-slate-500 leading-none mb-0.5">裏ドラ</span>
-              <div id="hud-uradora-tile" class="flex items-center"></div>
-            </div>
+          <div id="hud-uradora-wrap" class="hidden flex items-center gap-1 pl-1 border-l border-slate-200">
+            <span class="text-[10px] sm:text-[11px] font-bold text-amber-700">裏</span>
+            <div id="hud-uradora-tile" class="w-5 sm:w-6 flex items-center"></div>
           </div>
         </div>
       </div>
 
-      <!-- Hand Rack Area -->
-      <div class="tile-rack-bright rounded-xl p-2.5 sm:p-3.5 space-y-1.5">
-        <div class="flex items-center justify-between text-[11px] font-bold text-slate-500">
-          <span>手牌（門前13枚＋和了牌／副露手）</span>
-          <span id="rack-caption-right" class="text-emerald-700 font-extrabold">右端が和了牌</span>
-        </div>
-
-        <!-- Tiles Container -->
-        <div id="hand-tiles-container" class="hand-row-fluid py-1 min-h-[68px]">
+      <!-- Strictly 1-Row Hand Rack (14~16 tiles fluidly scaled, with sideways open melds) -->
+      <div class="bg-emerald-50/50 border border-emerald-200/80 rounded-xl px-1.5 py-2.5 sm:px-3 sm:py-3">
+        <div id="hand-tiles-container" class="hand-single-row">
           <!-- Populated dynamically by JS -->
         </div>
       </div>
     </section>
 
     <!-- ===============================================================
-         DIRECT SCORE INPUT & CUSTOM TENKEY SECTION
+         2. SCORE INPUT & 3-COLUMN TENKEY
          =============================================================== -->
-    <section id="answer-section" class="bg-white border border-slate-200 rounded-2xl p-3 sm:p-4 shadow-sm space-y-3">
-      <div class="flex items-center justify-between">
-        <div class="flex items-center gap-2">
-          <span id="input-prompt-badge" class="px-2.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-xs font-black">
-            子のロン和了
-          </span>
-          <h2 id="input-prompt-title" class="text-xs sm:text-sm font-black text-slate-800">
-            最終点数を入力してください
-          </h2>
-        </div>
-        <span class="text-[11px] font-bold text-slate-400">30符4飜・40符3飜＝切上満貫</span>
-      </div>
+    <section id="answer-section" class="bg-white border border-slate-200 rounded-2xl p-2.5 sm:p-4 shadow-sm space-y-2.5">
 
-      <!-- Dynamic Score Input Boxes -->
-      <!-- Case A: Single Input (親ロン / 子ロン / 親ツモオール) -->
-      <div id="single-input-wrap" class="flex items-center justify-center gap-2 py-1">
-        <button id="box-single" type="button" class="score-input-box score-input-active w-full max-w-xs h-14 px-4 rounded-xl border-2 border-slate-300 bg-slate-50 flex items-center justify-end gap-2">
-          <span id="val-single" class="font-mono font-black text-2xl sm:text-3xl text-slate-900 tracking-tight"></span>
-          <span id="unit-single" class="text-sm sm:text-base font-black text-slate-600 shrink-0">点</span>
-        </button>
-      </div>
-
-      <!-- Case B: Dual Input for 子ツモ (子 [〇〇] 点 / 親 [〇〇] 点) -->
-      <div id="dual-input-wrap" class="hidden grid grid-cols-2 gap-2.5 py-1">
-        <button id="box-ko" type="button" class="score-input-box score-input-active h-14 px-3 rounded-xl border-2 border-slate-300 bg-slate-50 flex items-center justify-between">
-          <span class="px-2 py-0.5 rounded bg-slate-200 text-slate-800 text-xs font-black shrink-0">子</span>
-          <div class="flex items-baseline gap-1 min-w-0">
-            <span id="val-ko" class="font-mono font-black text-xl sm:text-2xl text-slate-900 tracking-tight truncate"></span>
-            <span class="text-xs sm:text-sm font-black text-slate-600 shrink-0">点</span>
-          </div>
-        </button>
-        <button id="box-oya" type="button" class="score-input-box h-14 px-3 rounded-xl border-2 border-slate-300 bg-slate-50 flex items-center justify-between">
-          <span class="px-2 py-0.5 rounded bg-amber-100 text-amber-900 text-xs font-black shrink-0">親</span>
-          <div class="flex items-baseline gap-1 min-w-0">
-            <span id="val-oya" class="font-mono font-black text-xl sm:text-2xl text-slate-900 tracking-tight truncate"></span>
-            <span class="text-xs sm:text-sm font-black text-slate-600 shrink-0">点</span>
+      <!-- Dynamic Score Input Box (Strictly 1-Line Labels) -->
+      <!-- Case A: Single Input (ロン / 親ツモオール) -->
+      <div id="single-input-wrap" class="flex items-center justify-center">
+        <button id="box-single" type="button" class="score-input-box score-input-active w-full h-12 sm:h-14 px-4 rounded-xl border-2 border-slate-300 bg-slate-50 flex items-center justify-between">
+          <span id="label-single-left" class="text-xs sm:text-sm font-black text-slate-600">子のロン和了</span>
+          <div class="flex items-baseline gap-1.5">
+            <span id="val-single" class="font-mono font-black text-2xl sm:text-3xl text-slate-900">0</span>
+            <span id="unit-single" class="text-sm sm:text-base font-black text-slate-700">点</span>
           </div>
         </button>
       </div>
 
-      <!-- Validation Notice (if user taps Submit while empty) -->
-      <div id="input-error-msg" class="hidden text-center text-xs font-bold text-rose-600 bg-rose-50 border border-rose-200 rounded-lg py-1.5">
-        点数を入力してから「回答する」をタップしてください
-      </div>
-
-      <!-- Built-in Mobile-Optimized Custom Tenkey -->
-      <div class="grid grid-cols-4 gap-2 pt-1 max-w-md mx-auto">
-        <button type="button" data-key="7" class="tenkey-btn h-12 sm:h-13 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 font-mono font-black text-xl text-slate-900 shadow-sm">7</button>
-        <button type="button" data-key="8" class="tenkey-btn h-12 sm:h-13 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 font-mono font-black text-xl text-slate-900 shadow-sm">8</button>
-        <button type="button" data-key="9" class="tenkey-btn h-12 sm:h-13 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 font-mono font-black text-xl text-slate-900 shadow-sm">9</button>
-        <button type="button" data-key="BS" class="tenkey-btn h-12 sm:h-13 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 font-black text-sm text-rose-700 shadow-sm">⌫ 消す</button>
-
-        <button type="button" data-key="4" class="tenkey-btn h-12 sm:h-13 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 font-mono font-black text-xl text-slate-900 shadow-sm">4</button>
-        <button type="button" data-key="5" class="tenkey-btn h-12 sm:h-13 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 font-mono font-black text-xl text-slate-900 shadow-sm">5</button>
-        <button type="button" data-key="6" class="tenkey-btn h-12 sm:h-13 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 font-mono font-black text-xl text-slate-900 shadow-sm">6</button>
-        <button type="button" data-key="CLR" class="tenkey-btn h-12 sm:h-13 rounded-xl bg-slate-200 hover:bg-slate-300 border border-slate-300 font-black text-xs text-slate-700 shadow-sm">クリア</button>
-
-        <button type="button" data-key="1" class="tenkey-btn h-12 sm:h-13 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 font-mono font-black text-xl text-slate-900 shadow-sm">1</button>
-        <button type="button" data-key="2" class="tenkey-btn h-12 sm:h-13 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 font-mono font-black text-xl text-slate-900 shadow-sm">2</button>
-        <button type="button" data-key="3" class="tenkey-btn h-12 sm:h-13 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 font-mono font-black text-xl text-slate-900 shadow-sm">3</button>
-        <button id="btn-key-switch" type="button" data-key="SW" class="tenkey-btn h-12 sm:h-13 rounded-xl bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 font-black text-xs text-indigo-800 shadow-sm">子 ⇄ 親</button>
-
-        <button type="button" data-key="0" class="tenkey-btn h-12 sm:h-13 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 font-mono font-black text-xl text-slate-900 shadow-sm">0</button>
-        <button type="button" data-key="00" class="tenkey-btn h-12 sm:h-13 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-300 font-mono font-black text-xl text-amber-900 shadow-sm">00</button>
-        <button id="btn-submit-score" type="button" class="tenkey-btn col-span-2 h-12 sm:h-13 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-sm sm:text-base shadow-md flex items-center justify-center gap-1">
-          <span id="submit-btn-label">回答する ▶</span>
+      <!-- Case B: Dual Input for 子ツモ (子 [ 1000 ] 点 / 親 [ 2000 ] 点) -->
+      <div id="dual-input-wrap" class="hidden grid grid-cols-2 gap-2">
+        <button id="box-ko" type="button" class="score-input-box score-input-active h-12 sm:h-14 px-3 rounded-xl border-2 border-slate-300 bg-slate-50 flex items-center justify-between">
+          <span class="px-2 py-0.5 rounded bg-slate-200 text-slate-800 text-xs font-black">子</span>
+          <div class="flex items-baseline gap-1">
+            <span id="val-ko" class="font-mono font-black text-xl sm:text-2xl text-slate-900">0</span>
+            <span class="text-xs sm:text-sm font-black text-slate-600">点</span>
+          </div>
+        </button>
+        <button id="box-oya" type="button" class="score-input-box h-12 sm:h-14 px-3 rounded-xl border-2 border-slate-300 bg-slate-50 flex items-center justify-between">
+          <span class="px-2 py-0.5 rounded bg-amber-100 text-amber-900 text-xs font-black">親</span>
+          <div class="flex items-baseline gap-1">
+            <span id="val-oya" class="font-mono font-black text-xl sm:text-2xl text-slate-900">0</span>
+            <span class="text-xs sm:text-sm font-black text-slate-600">点</span>
+          </div>
         </button>
       </div>
+
+      <!-- Single-Line Validation Message -->
+      <div id="input-error-msg" class="hidden text-center text-xs font-bold text-rose-600 bg-rose-50 border border-rose-200 rounded-lg py-1 whitespace-nowrap">
+        点数を入力してください
+      </div>
+
+      <!-- Clean 3-Column Tenkey + 1-Line Action Button -->
+      <div class="grid grid-cols-3 gap-1.5 sm:gap-2">
+        <button type="button" data-key="7" class="tenkey-btn h-11 sm:h-12 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 font-mono font-black text-xl text-slate-900">7</button>
+        <button type="button" data-key="8" class="tenkey-btn h-11 sm:h-12 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 font-mono font-black text-xl text-slate-900">8</button>
+        <button type="button" data-key="9" class="tenkey-btn h-11 sm:h-12 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 font-mono font-black text-xl text-slate-900">9</button>
+
+        <button type="button" data-key="4" class="tenkey-btn h-11 sm:h-12 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 font-mono font-black text-xl text-slate-900">4</button>
+        <button type="button" data-key="5" class="tenkey-btn h-11 sm:h-12 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 font-mono font-black text-xl text-slate-900">5</button>
+        <button type="button" data-key="6" class="tenkey-btn h-11 sm:h-12 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 font-mono font-black text-xl text-slate-900">6</button>
+
+        <button type="button" data-key="1" class="tenkey-btn h-11 sm:h-12 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 font-mono font-black text-xl text-slate-900">1</button>
+        <button type="button" data-key="2" class="tenkey-btn h-11 sm:h-12 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 font-mono font-black text-xl text-slate-900">2</button>
+        <button type="button" data-key="3" class="tenkey-btn h-11 sm:h-12 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 font-mono font-black text-xl text-slate-900">3</button>
+
+        <button type="button" data-key="0" class="tenkey-btn h-11 sm:h-12 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 font-mono font-black text-xl text-slate-900">0</button>
+        <button type="button" data-key="00" class="tenkey-btn h-11 sm:h-12 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-300 font-mono font-black text-xl text-amber-900">00</button>
+        <button type="button" data-key="BS" class="tenkey-btn h-11 sm:h-12 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 font-black text-base text-rose-700">⌫</button>
+      </div>
+
+      <!-- Full-Width Single-Line Submit / Next Field Button -->
+      <button id="btn-submit-score" type="button" class="tenkey-btn w-full h-12 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-base shadow-sm flex items-center justify-center">
+        <span id="submit-btn-label">回答する</span>
+      </button>
     </section>
 
     <!-- ===============================================================
-         RESULT & VISUAL BLOCK-BY-BLOCK FU EXPLANATION PANEL
+         3. SINGLE-COLUMN RESULT & 1-LINE-PER-ITEM EXPLANATION
          =============================================================== -->
-    <section id="result-section" class="hidden anim-appear space-y-3">
-      <!-- Verdict Banner -->
-      <div id="verdict-banner" class="rounded-2xl p-4 border shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div class="space-y-1">
-          <div class="flex items-center gap-2">
-            <span id="verdict-badge" class="px-2.5 py-0.5 rounded-md text-xs font-black">正解！</span>
-            <h3 id="verdict-title" class="text-base sm:text-lg font-black text-slate-900"></h3>
+    <section id="result-section" class="hidden space-y-2.5">
+      <!-- Verdict & Correct Score (Single-Column Clean Card) -->
+      <div id="verdict-banner" class="rounded-2xl p-3.5 border-2 bg-white shadow-sm space-y-2.5">
+        <div class="flex items-center justify-between gap-2 whitespace-nowrap">
+          <div class="flex items-center gap-2 min-w-0">
+            <span id="verdict-badge" class="px-2.5 py-0.5 rounded-md text-xs font-black shrink-0">正解</span>
+            <span id="verdict-summary" class="text-sm sm:text-base font-black text-slate-900 truncate"></span>
           </div>
-          <p id="verdict-subtitle" class="text-xs sm:text-sm text-slate-700 font-medium leading-relaxed"></p>
+          <span id="verdict-user-ans" class="text-xs font-bold text-slate-500 shrink-0"></span>
         </div>
-        <button id="btn-next-after-result" type="button" class="w-full sm:w-auto px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-black text-xs sm:text-sm shrink-0 shadow transition">
+
+        <!-- 1-Line Review List Status & Toggle -->
+        <div class="flex items-center justify-between gap-2 pt-1 border-t border-slate-200/70 whitespace-nowrap">
+          <span id="review-status-msg" class="text-[11px] font-bold text-slate-600 truncate"></span>
+          <button id="btn-toggle-bookmark" type="button" class="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 text-[11px] font-black shrink-0 transition">
+            復習リストに残す
+          </button>
+        </div>
+
+        <button id="btn-next-after-result" type="button" class="tenkey-btn w-full h-11 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-sm shadow-sm flex items-center justify-center">
           次の問題へ ▶
         </button>
       </div>
 
-      <!-- Yaku & Score Table Reference for Current Hand -->
-      <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div class="space-y-2">
-          <div class="flex items-center justify-between border-b border-slate-100 pb-1.5">
-            <span class="text-xs font-black text-slate-800">① 成立役・ドラ内訳</span>
-            <span id="explain-han-total" class="text-xs font-mono font-black text-indigo-700">合計 3飜</span>
-          </div>
-          <div id="explain-yaku-list" class="space-y-1.5 text-xs"></div>
+      <!-- Yaku Breakdown: 1 Row per Item (Left Name / Right Han) -->
+      <div class="bg-white border border-slate-200 rounded-2xl p-3.5 shadow-sm space-y-1.5">
+        <div class="flex items-center justify-between border-b border-slate-200 pb-1.5 text-xs font-black text-slate-800 whitespace-nowrap">
+          <span>役・ドラ内訳</span>
+          <span id="explain-han-total" class="font-mono text-indigo-700">合計 3飜</span>
         </div>
-
-        <div class="space-y-2">
-          <div class="flex items-center justify-between border-b border-slate-100 pb-1.5">
-            <span class="text-xs font-black text-slate-800">② 最終点数と算出式</span>
-            <span id="explain-score-final" class="text-sm font-mono font-black text-emerald-700">5200点</span>
-          </div>
-          <div id="explain-score-detail" class="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-700 space-y-1.5 leading-relaxed"></div>
-        </div>
+        <div id="explain-yaku-list" class="divide-y divide-slate-100 text-xs"></div>
       </div>
 
-      <!-- Visual Block-by-Block Fu Breakdown Card -->
-      <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm space-y-3">
-        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2.5">
-          <div class="flex items-center gap-2">
-            <span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-black text-xs">③ 符の計算内訳</span>
-            <span class="text-xs font-bold text-slate-600">副底・和了方・各面子・雀頭・待ちの符</span>
-          </div>
-          <div id="explain-fu-equation" class="text-xs sm:text-sm font-mono font-black text-emerald-700 bg-emerald-50 px-3 py-1 rounded-lg border border-emerald-200">
-            20 + 10 + 4 + 2 = 36符 ➔ 切上 40符
-          </div>
+      <!-- Fu Breakdown: 1 Row per Item (Left Item / Right Fu) -->
+      <div class="bg-white border border-slate-200 rounded-2xl p-3.5 shadow-sm space-y-1.5">
+        <div class="flex items-center justify-between border-b border-slate-200 pb-1.5 text-xs font-black text-slate-800 whitespace-nowrap">
+          <span>符の内訳</span>
+          <span id="explain-fu-total" class="font-mono text-emerald-700">36符 → 切上 40符</span>
         </div>
-
-        <!-- Visual Block Cards Grid -->
-        <div id="explain-blocks-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-          <!-- Populated dynamically with each Mentsu, Jantou, Wait, and Base/WinFu -->
-        </div>
-
-        <!-- Special Rule Note if applicable -->
-        <div id="explain-special-note" class="hidden rounded-xl bg-amber-50 border border-amber-200 p-3 text-xs text-amber-900 font-bold leading-relaxed"></div>
+        <div id="explain-fu-list" class="divide-y divide-slate-100 text-xs"></div>
       </div>
     </section>
 
   </main>
 
-  <!-- ===============================================================
-       MODAL 1: FU & SCORE CHEAT SHEET (符計算・点数早見表)
-       =============================================================== -->
-  <div id="modal-cheatsheet" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3">
-    <div class="bg-white border border-slate-200 rounded-2xl max-w-2xl w-full max-h-[88vh] flex flex-col shadow-2xl overflow-hidden anim-appear">
-      <div class="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-slate-50">
-        <div>
-          <h2 class="text-sm sm:text-base font-black text-slate-900">📖 麻雀 符計算・点数早見表</h2>
-          <p class="text-[11px] text-slate-500">連風牌雀頭＝2符 / 30符4飜・40符3飜＝切り上げ満貫</p>
-        </div>
-        <button id="btn-close-cheatsheet" type="button" class="px-3 py-1.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-xs font-bold text-slate-800">
-          閉じる ✕
-        </button>
-      </div>
-      <div class="p-4 overflow-y-auto space-y-4 text-xs">
-        <!-- 1. 面子符の表 -->
-        <div class="space-y-1.5">
-          <h3 class="font-black text-slate-800 border-l-4 border-emerald-600 pl-2">1. 面子（メンツ）につく符 ※2倍ずつ増える法則</h3>
-          <table class="w-full text-center border-collapse border border-slate-200 rounded-lg overflow-hidden">
-            <thead class="bg-slate-100 text-slate-700 font-bold">
-              <tr>
-                <th class="border border-slate-200 py-1.5 px-2">種類</th>
-                <th class="border border-slate-200 py-1.5 px-2">明刻 (ポン/ロン刻子)</th>
-                <th class="border border-slate-200 py-1.5 px-2">暗刻 (手牌内3枚)</th>
-                <th class="border border-slate-200 py-1.5 px-2">明槓 (ミンカン)</th>
-                <th class="border border-slate-200 py-1.5 px-2">暗槓 (アンカン)</th>
-              </tr>
-            </thead>
-            <tbody class="font-mono font-bold">
-              <tr>
-                <td class="border border-slate-200 py-2 px-2 font-sans text-slate-800 bg-slate-50">中張牌 (2〜8)</td>
-                <td class="border border-slate-200 py-2 text-emerald-700">+2符</td>
-                <td class="border border-slate-200 py-2 text-emerald-700">+4符</td>
-                <td class="border border-slate-200 py-2 text-emerald-700">+8符</td>
-                <td class="border border-slate-200 py-2 text-emerald-700">+16符</td>
-              </tr>
-              <tr>
-                <td class="border border-slate-200 py-2 px-2 font-sans text-slate-800 bg-amber-50/60">么九牌 (1・9・字牌)</td>
-                <td class="border border-slate-200 py-2 text-amber-700">+4符</td>
-                <td class="border border-slate-200 py-2 text-amber-700">+8符</td>
-                <td class="border border-slate-200 py-2 text-amber-700">+16符</td>
-                <td class="border border-slate-200 py-2 text-amber-700">+32符</td>
-              </tr>
-            </tbody>
-          </table>
-          <p class="text-[11px] text-rose-600 font-bold">※重要：シャンポン待ちでロン和了した刻子は「明刻」扱いになります。</p>
-        </div>
-
-        <!-- 2. 和了方法・雀頭・待ち -->
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-          <div class="bg-slate-50 border border-slate-200 rounded-xl p-2.5 space-y-1">
-            <div class="font-black text-slate-800">2. 和了方法の符</div>
-            <div class="flex justify-between"><span>門前ロン</span><strong class="text-emerald-700">+10符</strong></div>
-            <div class="flex justify-between"><span>ツモ和了</span><strong class="text-emerald-700">+2符</strong></div>
-            <div class="flex justify-between"><span>副露ロン</span><strong class="text-slate-500">0符</strong></div>
-            <div class="text-[10px] text-slate-500 pt-1">※平和ツモは例外で一律20符</div>
-          </div>
-          <div class="bg-slate-50 border border-slate-200 rounded-xl p-2.5 space-y-1">
-            <div class="font-black text-slate-800">3. 雀頭（アタマ）の符</div>
-            <div class="flex justify-between"><span>役牌 (白發中/場風/自風)</span><strong class="text-emerald-700">+2符</strong></div>
-            <div class="flex justify-between"><span>連風牌 (ダブ東/ダブ南)</span><strong class="text-emerald-700">+2符</strong></div>
-            <div class="flex justify-between"><span>数牌・オタ風</span><strong class="text-slate-500">0符</strong></div>
-          </div>
-          <div class="bg-slate-50 border border-slate-200 rounded-xl p-2.5 space-y-1">
-            <div class="font-black text-slate-800">4. 待ち形の符</div>
-            <div class="flex justify-between"><span>カンチャン・ペンチャン</span><strong class="text-emerald-700">+2符</strong></div>
-            <div class="flex justify-between"><span>単騎・ノベタン</span><strong class="text-emerald-700">+2符</strong></div>
-            <div class="flex justify-between"><span>両面・シャンポン</span><strong class="text-slate-500">0符</strong></div>
-          </div>
-        </div>
-
-        <!-- 3. 例外ルールと切り上げ満貫 -->
-        <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-3 space-y-1">
-          <div class="font-black text-emerald-900">5. 重要ルール（切り上げ満貫・例外符）</div>
-          <ul class="list-disc list-inside text-emerald-900 space-y-0.5 font-medium">
-            <li><strong>3飜40符・4飜30符は「切り上げ満貫」</strong>：子8000点（2000/4000）、親12000点（4000オール）</li>
-            <li><strong>連風牌（ダブ東・ダブ南）の雀頭</strong>：2符として計算</li>
-            <li><strong>七対子（チートイツ）</strong>：ツモ・ロン問わず一律 <strong>25符固定</strong></li>
-            <li><strong>平和ツモ（ピンフツモ）</strong>：ツモ+2符をつけず一律 <strong>20符固定</strong></li>
-            <li><strong>喰い平和形（鳴いて20符になる手）</strong>：合計20符でも最低 <strong>30符</strong> に繰り上げる</li>
-          </ul>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ===============================================================
-       MODAL 2: ALL 34 TILES GALLERY (高視認性・麻雀牌デザイン一覧)
-       =============================================================== -->
-  <div id="modal-gallery" class="hidden fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3">
-    <div class="bg-white border border-slate-200 rounded-2xl max-w-2xl w-full max-h-[88vh] flex flex-col shadow-2xl overflow-hidden anim-appear">
-      <div class="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-slate-50">
-        <div>
-          <h2 class="text-sm sm:text-base font-black text-slate-900">🀄 麻雀牌デザイン一覧（全34種・配色統一版）</h2>
-          <p class="text-[11px] text-slate-500">筒子の統一カラー（2p・4p・8p濃紺、6p上紺下赤、7p上緑下赤）＆八索M/W形状</p>
-        </div>
-        <button id="btn-close-gallery" type="button" class="px-3 py-1.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-xs font-bold text-slate-800">
-          閉じる ✕
-        </button>
-      </div>
-      <div id="gallery-content" class="p-4 overflow-y-auto space-y-4"></div>
-    </div>
-  </div>
-
   <script>
     /*************************************************************************
-     * 1. HIGH-VISIBILITY, UNIFIED-COLOR MAHJONG TILE SVG RENDERER
+     * 1. HIGH-VISIBILITY MAHJONG TILE SVG RENDERER (OPTIMIZED FOR 1-ROW MOBILE)
      *************************************************************************/
     const TILE_NAMES_JA = [
       '一萬','二萬','三萬','四萬','五萬','六萬','七萬','八萬','九萬',
@@ -429,16 +318,8 @@
       '一索','二索','三索','四索','五索','六索','七索','八索','九索',
       '東','南','西','北','白','發','中'
     ];
-    const TILE_CODES = [
-      '1m','2m','3m','4m','5m','6m','7m','8m','9m',
-      '1p','2p','3p','4p','5p','6p','7p','8p','9p',
-      '1s','2s','3s','4s','5s','6s','7s','8s','9s',
-      '1z','2z','3z','4z','5z','6z','7z'
-    ];
     const KANJI_NUMS = ['一','二','三','四','五','六','七','八','九'];
     const JIHAI_CHARS = ['東','南','西','北','白','發','中'];
-
-    let showCornerGuide = false;
 
     const isYaochu = (idx) => {
       if (idx >= 27) return true;
@@ -446,14 +327,10 @@
       return n === 0 || n === 8;
     };
 
-    /**
-     * Clean, high-contrast Pinzu circle (筒子) with unified colors and crisp concentric rings.
-     * No noisy dashed strokes that blur on mobile screens!
-     */
     function drawCleanPin(cx, cy, r, fillHex) {
-      const ringR = (r * 0.58).toFixed(1);
+      const ringR = (r * 0.56).toFixed(1);
       const centerR = (r * 0.22).toFixed(1);
-      const strokeW = Math.max(1.8, r * 0.14).toFixed(1);
+      const strokeW = Math.max(2.0, r * 0.15).toFixed(1);
       return `
         <g>
           <circle cx="${cx}" cy="${cy}" r="${r}" fill="${fillHex}" />
@@ -463,10 +340,7 @@
       `;
     }
 
-    /**
-     * Clean, bold Souzu bamboo stick (索子) supporting vertical and diagonal (8s M/W) geometry.
-     */
-    function drawCleanBamboo(x1, y1, x2, y2, fillHex, width = 14) {
+    function drawCleanBamboo(x1, y1, x2, y2, fillHex, width = 15) {
       const mx = (x1 + x2) / 2;
       const my = (y1 + y2) / 2;
       const len = Math.hypot(x2 - x1, y2 - y1);
@@ -475,206 +349,199 @@
       return `
         <g transform="translate(${mx.toFixed(1)}, ${my.toFixed(1)}) rotate(${angle.toFixed(1)})">
           <rect x="${(-r).toFixed(1)}" y="${(-len / 2).toFixed(1)}" width="${width.toFixed(1)}" height="${len.toFixed(1)}" rx="${r.toFixed(1)}" fill="${fillHex}" />
-          <rect x="${(-r * 0.35).toFixed(1)}" y="${(-len / 2 + 3).toFixed(1)}" width="${(width * 0.28).toFixed(1)}" height="${(len - 6).toFixed(1)}" rx="1.5" fill="#ffffff" opacity="0.28" />
-          <rect x="${(-r - 1).toFixed(1)}" y="-2.6" width="${(width + 2).toFixed(1)}" height="5.2" rx="2" fill="#ffffff" />
-          <line x1="${(-r).toFixed(1)}" y1="0" x2="${r.toFixed(1)}" y2="0" stroke="${fillHex}" stroke-width="1.4" />
+          <rect x="${(-r - 1).toFixed(1)}" y="-2.8" width="${(width + 2).toFixed(1)}" height="5.6" rx="2" fill="#ffffff" />
+          <line x1="${(-r).toFixed(1)}" y1="0" x2="${r.toFixed(1)}" y2="0" stroke="${fillHex}" stroke-width="1.5" />
         </g>
       `;
     }
 
     /**
-     * Renders a crisp, high-visibility Japanese Mahjong Tile SVG (viewBox="0 0 100 138").
+     * Renders a crisp, fluid SVG tile with exact 100x138 dimensions.
      */
-    function renderTileSVG(tileIdx, { width = 42, isBack = false, highlight = false } = {}) {
-      const height = Math.round(width * 1.38);
-      const sizeAttr = `width="${width}" height="${height}" class="inline-block select-none shrink-0"`;
-
+    function renderTileSVG(tileIdx, { isBack = false, highlight = false } = {}) {
       if (isBack) {
         return `
-          <svg ${sizeAttr} viewBox="0 0 100 138">
-            <rect x="2" y="6" width="96" height="128" rx="13" fill="#94a3b8" />
-            <rect x="2" y="2" width="96" height="128" rx="13" fill="#0284c7" stroke="#0369a1" stroke-width="3" />
-            <rect x="10" y="10" width="80" height="112" rx="9" fill="#0ea5e9" stroke="#bae6fd" stroke-width="2" />
+          <svg viewBox="0 0 100 138" class="w-full h-full select-none">
+            <rect x="2" y="6" width="96" height="130" rx="11" fill="#94a3b8" />
+            <rect x="2" y="2" width="96" height="130" rx="11" fill="#0284c7" stroke="#0369a1" stroke-width="3" />
+            <rect x="11" y="11" width="78" height="112" rx="7" fill="#0ea5e9" />
           </svg>
         `;
       }
 
-      // Unified, high-contrast traditional palette
-      const NAVY  = '#1e3a8a'; // Unified deep navy for Pinzu
-      const RED   = '#dc2626'; // Crisp crimson red
-      const GREEN = '#15803d'; // Rich bamboo green
-      const INK   = '#0f172a'; // High-contrast charcoal black
+      const NAVY  = '#1e3a8a';
+      const RED   = '#dc2626';
+      const GREEN = '#15803d';
+      const INK   = '#0f172a';
       const SERIF = `'Shippori Mincho B1', 'Noto Serif JP', serif`;
 
       let content = '';
 
-      // 1. MANZU (萬子 0..8)
+      // 1. MANZU (0..8) - Extra-large bold characters for 1-row mobile legibility
       if (tileIdx >= 0 && tileIdx <= 8) {
         const kanji = KANJI_NUMS[tileIdx];
         content = `
-          <text x="50" y="58" text-anchor="middle" font-family="${SERIF}" font-weight="900" font-size="56" fill="${INK}">${kanji}</text>
-          <text x="50" y="116" text-anchor="middle" font-family="${SERIF}" font-weight="900" font-size="52" fill="${RED}">萬</text>
+          <text x="50" y="60" text-anchor="middle" font-family="${SERIF}" font-weight="900" font-size="62" fill="${INK}">${kanji}</text>
+          <text x="50" y="121" text-anchor="middle" font-family="${SERIF}" font-weight="900" font-size="56" fill="${RED}">萬</text>
         `;
       }
 
-      // 2. PINZU (筒子 9..17) - UNIFIED COLORS & CLEAN GEOMETRY
+      // 2. PINZU (9..17) - Unified colors (2p,4p,8p Navy; 5p Navy+Red; 6p 2Navy+4Red; 7p 3Green+4Red; 9p 3-color)
       else if (tileIdx >= 9 && tileIdx <= 17) {
         const n = tileIdx - 8;
         if (n === 1) {
-          // 1p: Large traditional 1-pin medallion (Navy outer, Red inner)
           content = `
-            <circle cx="50" cy="69" r="39" fill="${NAVY}" />
-            <circle cx="50" cy="69" r="31" fill="none" stroke="#ffffff" stroke-width="3.5" />
-            <circle cx="50" cy="69" r="23" fill="${RED}" />
-            <circle cx="50" cy="69" r="13" fill="none" stroke="#ffffff" stroke-width="3" />
-            <circle cx="50" cy="69" r="5.5" fill="#ffffff" />
+            <circle cx="50" cy="70" r="41" fill="${NAVY}" />
+            <circle cx="50" cy="70" r="32" fill="none" stroke="#ffffff" stroke-width="4" />
+            <circle cx="50" cy="70" r="24" fill="${RED}" />
+            <circle cx="50" cy="70" r="13" fill="none" stroke="#ffffff" stroke-width="3.2" />
+            <circle cx="50" cy="70" r="5.5" fill="#ffffff" />
           `;
         } else if (n === 2) {
-          // 2p: Both circles unified Navy Blue
-          content = drawCleanPin(50, 36, 25, NAVY) + drawCleanPin(50, 102, 25, NAVY);
+          content = drawCleanPin(50, 36, 26, NAVY) + drawCleanPin(50, 104, 26, NAVY);
         } else if (n === 3) {
-          // 3p: Diagonal 3 circles (Top-left Green, Center Red, Bottom-right Navy)
-          content = drawCleanPin(24, 28, 20, GREEN) + drawCleanPin(50, 69, 20, RED) + drawCleanPin(76, 110, 20, NAVY);
+          content = drawCleanPin(23, 27, 21, GREEN) + drawCleanPin(50, 70, 21, RED) + drawCleanPin(77, 113, 21, NAVY);
         } else if (n === 4) {
-          // 4p: All 4 circles unified Navy Blue
           content =
-            drawCleanPin(28, 36, 21, NAVY) + drawCleanPin(72, 36, 21, NAVY) +
-            drawCleanPin(28, 102, 21, NAVY) + drawCleanPin(72, 102, 21, NAVY);
+            drawCleanPin(27, 36, 22, NAVY) + drawCleanPin(73, 36, 22, NAVY) +
+            drawCleanPin(27, 104, 22, NAVY) + drawCleanPin(73, 104, 22, NAVY);
         } else if (n === 5) {
-          // 5p: 4 outer circles unified Navy Blue + 1 center circle Red
           content =
-            drawCleanPin(26, 31, 18.5, NAVY) + drawCleanPin(74, 31, 18.5, NAVY) +
-            drawCleanPin(50, 69, 19, RED) +
-            drawCleanPin(26, 107, 18.5, NAVY) + drawCleanPin(74, 107, 18.5, NAVY);
+            drawCleanPin(25, 30, 19.5, NAVY) + drawCleanPin(75, 30, 19.5, NAVY) +
+            drawCleanPin(50, 70, 20, RED) +
+            drawCleanPin(25, 110, 19.5, NAVY) + drawCleanPin(75, 110, 19.5, NAVY);
         } else if (n === 6) {
-          // 6p: Top 2 Navy Blue + Bottom 4 Red (with clear gap between top and bottom)
           content =
-            drawCleanPin(28, 28, 17.5, NAVY) + drawCleanPin(72, 28, 17.5, NAVY) +
-            drawCleanPin(28, 76, 17.5, RED)  + drawCleanPin(72, 76, 17.5, RED) +
-            drawCleanPin(28, 112, 17.5, RED) + drawCleanPin(72, 112, 17.5, RED);
+            drawCleanPin(27, 27, 18.5, NAVY) + drawCleanPin(73, 27, 18.5, NAVY) +
+            drawCleanPin(27, 77, 18.5, RED)  + drawCleanPin(73, 77, 18.5, RED) +
+            drawCleanPin(27, 114, 18.5, RED) + drawCleanPin(73, 114, 18.5, RED);
         } else if (n === 7) {
-          // 7p: Top 3 diagonal Green + Bottom 4 Red
           content =
-            drawCleanPin(23, 23, 15.5, GREEN) + drawCleanPin(50, 35, 15.5, GREEN) + drawCleanPin(77, 47, 15.5, GREEN) +
-            drawCleanPin(28, 82, 16.5, RED) + drawCleanPin(72, 82, 16.5, RED) +
-            drawCleanPin(28, 114, 16.5, RED) + drawCleanPin(72, 114, 16.5, RED);
+            drawCleanPin(22, 22, 16, GREEN) + drawCleanPin(50, 35, 16, GREEN) + drawCleanPin(78, 48, 16, GREEN) +
+            drawCleanPin(27, 83, 17.5, RED) + drawCleanPin(73, 83, 17.5, RED) +
+            drawCleanPin(27, 116, 17.5, RED) + drawCleanPin(73, 116, 17.5, RED);
         } else if (n === 8) {
-          // 8p: All 8 circles unified Navy Blue
           for (let r = 0; r < 4; r++) {
-            const y = 23 + r * 30.6;
-            content += drawCleanPin(28, y, 14.5, NAVY) + drawCleanPin(72, y, 14.5, NAVY);
+            const y = 23 + r * 31;
+            content += drawCleanPin(27, y, 15, NAVY) + drawCleanPin(73, y, 15, NAVY);
           }
         } else if (n === 9) {
-          // 9p: Top row Navy, Middle row Red, Bottom row Green
           const rowColors = [NAVY, RED, GREEN];
-          const ys = [27, 69, 111];
-          const xs = [22, 50, 78];
+          const ys = [26, 70, 114];
+          const xs = [21, 50, 79];
           for (let r = 0; r < 3; r++) {
             for (let c = 0; c < 3; c++) {
-              content += drawCleanPin(xs[c], ys[r], 14.2, rowColors[r]);
+              content += drawCleanPin(xs[c], ys[r], 15, rowColors[r]);
             }
           }
         }
       }
 
-      // 3. SOUZU (索子 18..26)
+      // 3. SOUZU (18..26) - Authentic 8s M/W shape & bold bamboo sticks
       else if (tileIdx >= 18 && tileIdx <= 26) {
         const n = tileIdx - 17;
         if (n === 1) {
-          // 1s: Clean, high-contrast symmetrical Peacock emblem
           content = `
-            <circle cx="50" cy="54" r="32" fill="#dcfce7" stroke="${GREEN}" stroke-width="3" />
-            <path d="M24 94 C22 64, 36 44, 50 44 C64 44, 78 64, 76 94 C66 112, 34 112, 24 94 Z" fill="${GREEN}" />
-            <circle cx="50" cy="36" r="10.5" fill="${GREEN}" stroke="#ffffff" stroke-width="2" />
-            <path d="M45 22 L50 12 L55 22 Z" fill="${RED}" />
-            <polygon points="50,34 40,39 50,42" fill="#f59e0b" />
-            <circle cx="50" cy="76" r="15" fill="${RED}" stroke="#ffffff" stroke-width="2.5" />
-            <circle cx="50" cy="76" r="6" fill="#fef08a" />
-            <line x1="22" y1="118" x2="78" y2="118" stroke="${RED}" stroke-width="5.5" stroke-linecap="round" />
+            <circle cx="50" cy="55" r="34" fill="#dcfce7" stroke="${GREEN}" stroke-width="3.5" />
+            <path d="M22 96 C20 64, 35 44, 50 44 C65 44, 80 64, 78 96 C68 114, 32 114, 22 96 Z" fill="${GREEN}" />
+            <circle cx="50" cy="35" r="11" fill="${GREEN}" stroke="#ffffff" stroke-width="2" />
+            <path d="M44 20 L50 10 L56 20 Z" fill="${RED}" />
+            <circle cx="50" cy="77" r="16" fill="${RED}" stroke="#ffffff" stroke-width="2.5" />
+            <circle cx="50" cy="77" r="6.5" fill="#fef08a" />
+            <line x1="20" y1="120" x2="80" y2="120" stroke="${RED}" stroke-width="6" stroke-linecap="round" />
           `;
         } else if (n === 2) {
-          content = drawCleanBamboo(50, 14, 50, 62, GREEN, 16.5) + drawCleanBamboo(50, 76, 50, 124, GREEN, 16.5);
+          content = drawCleanBamboo(50, 12, 50, 63, GREEN, 18) + drawCleanBamboo(50, 77, 50, 128, GREEN, 18);
         } else if (n === 3) {
           content =
-            drawCleanBamboo(50, 14, 50, 62, GREEN, 16) +
-            drawCleanBamboo(28, 76, 28, 124, GREEN, 16) +
-            drawCleanBamboo(72, 76, 72, 124, GREEN, 16);
+            drawCleanBamboo(50, 12, 50, 63, GREEN, 17.5) +
+            drawCleanBamboo(27, 77, 27, 128, GREEN, 17.5) +
+            drawCleanBamboo(73, 77, 73, 128, GREEN, 17.5);
         } else if (n === 4) {
           content =
-            drawCleanBamboo(28, 14, 28, 62, GREEN, 16) + drawCleanBamboo(72, 14, 72, 62, GREEN, 16) +
-            drawCleanBamboo(28, 76, 28, 124, GREEN, 16) + drawCleanBamboo(72, 76, 72, 124, GREEN, 16);
+            drawCleanBamboo(27, 12, 27, 63, GREEN, 17.5) + drawCleanBamboo(73, 12, 73, 63, GREEN, 17.5) +
+            drawCleanBamboo(27, 77, 27, 128, GREEN, 17.5) + drawCleanBamboo(73, 77, 73, 128, GREEN, 17.5);
         } else if (n === 5) {
           content =
-            drawCleanBamboo(22, 14, 22, 62, GREEN, 14.5) + drawCleanBamboo(78, 14, 78, 62, GREEN, 14.5) +
-            drawCleanBamboo(22, 76, 22, 124, GREEN, 14.5) + drawCleanBamboo(78, 76, 78, 124, GREEN, 14.5) +
-            drawCleanBamboo(50, 44, 50, 94, RED, 15);
+            drawCleanBamboo(21, 12, 21, 63, GREEN, 15.5) + drawCleanBamboo(79, 12, 79, 63, GREEN, 15.5) +
+            drawCleanBamboo(21, 77, 21, 128, GREEN, 15.5) + drawCleanBamboo(79, 77, 79, 128, GREEN, 15.5) +
+            drawCleanBamboo(50, 44, 50, 96, RED, 16);
         } else if (n === 6) {
           content =
-            drawCleanBamboo(22, 14, 22, 62, GREEN, 14.5) + drawCleanBamboo(50, 14, 50, 62, GREEN, 14.5) + drawCleanBamboo(78, 14, 78, 62, GREEN, 14.5) +
-            drawCleanBamboo(22, 76, 22, 124, GREEN, 14.5) + drawCleanBamboo(50, 76, 50, 124, GREEN, 14.5) + drawCleanBamboo(78, 76, 78, 124, GREEN, 14.5);
+            drawCleanBamboo(21, 12, 21, 63, GREEN, 15.5) + drawCleanBamboo(50, 12, 50, 63, GREEN, 15.5) + drawCleanBamboo(79, 12, 79, 63, GREEN, 15.5) +
+            drawCleanBamboo(21, 77, 21, 128, GREEN, 15.5) + drawCleanBamboo(50, 77, 50, 128, GREEN, 15.5) + drawCleanBamboo(79, 77, 79, 128, GREEN, 15.5);
         } else if (n === 7) {
           content =
-            drawCleanBamboo(50, 11, 50, 45, RED, 14) +
-            drawCleanBamboo(22, 51, 22, 85, GREEN, 14) + drawCleanBamboo(50, 51, 50, 85, GREEN, 14) + drawCleanBamboo(78, 51, 78, 85, GREEN, 14) +
-            drawCleanBamboo(22, 91, 22, 125, GREEN, 14) + drawCleanBamboo(50, 91, 50, 125, GREEN, 14) + drawCleanBamboo(78, 91, 78, 125, GREEN, 14);
+            drawCleanBamboo(50, 10, 50, 45, RED, 15) +
+            drawCleanBamboo(21, 51, 21, 86, GREEN, 15) + drawCleanBamboo(50, 51, 50, 86, GREEN, 15) + drawCleanBamboo(79, 51, 79, 86, GREEN, 15) +
+            drawCleanBamboo(21, 92, 21, 128, GREEN, 15) + drawCleanBamboo(50, 92, 50, 128, GREEN, 15) + drawCleanBamboo(79, 92, 79, 128, GREEN, 15);
         } else if (n === 8) {
-          // 8s: Authentic M-shaped top & W-shaped bottom (All Green)
           content =
-            drawCleanBamboo(19, 14, 19, 62, GREEN, 13) +
-            drawCleanBamboo(23, 16, 47, 59, GREEN, 12.5) +
-            drawCleanBamboo(77, 16, 53, 59, GREEN, 12.5) +
-            drawCleanBamboo(81, 14, 81, 62, GREEN, 13) +
-            drawCleanBamboo(19, 76, 19, 124, GREEN, 13) +
-            drawCleanBamboo(23, 122, 47, 79, GREEN, 12.5) +
-            drawCleanBamboo(77, 122, 53, 79, GREEN, 12.5) +
-            drawCleanBamboo(81, 76, 81, 124, GREEN, 13);
+            drawCleanBamboo(18, 12, 18, 63, GREEN, 14) +
+            drawCleanBamboo(22, 14, 47, 60, GREEN, 13.5) +
+            drawCleanBamboo(78, 14, 53, 60, GREEN, 13.5) +
+            drawCleanBamboo(82, 12, 82, 63, GREEN, 14) +
+            drawCleanBamboo(18, 77, 18, 128, GREEN, 14) +
+            drawCleanBamboo(22, 126, 47, 80, GREEN, 13.5) +
+            drawCleanBamboo(78, 126, 53, 80, GREEN, 13.5) +
+            drawCleanBamboo(82, 77, 82, 128, GREEN, 14);
         } else if (n === 9) {
-          const xs = [22, 50, 78];
+          const xs = [21, 50, 79];
           const cols = [GREEN, RED, GREEN];
-          const ys = [[11, 45], [51, 85], [91, 125]];
+          const ys = [[10, 45], [51, 86], [92, 128]];
           for (let r = 0; r < 3; r++) {
             for (let c = 0; c < 3; c++) {
-              content += drawCleanBamboo(xs[c], ys[r][0], xs[c], ys[r][1], cols[c], 14);
+              content += drawCleanBamboo(xs[c], ys[r][0], xs[c], ys[r][1], cols[c], 15);
             }
           }
         }
       }
 
-      // 4. JIHAI (字牌 27..33)
+      // 4. JIHAI (27..33)
       else if (tileIdx >= 27 && tileIdx <= 33) {
         const z = tileIdx - 27;
         if (z === 4) {
-          // 5z: Haku (白) - Unmistakable double navy/slate frame on bright ivory tile
           content = `
-            <rect x="17" y="20" width="66" height="96" rx="10" fill="#ffffff" stroke="#334155" stroke-width="3.5" />
-            <rect x="24" y="27" width="52" height="82" rx="6" fill="none" stroke="#94a3b8" stroke-width="2" />
+            <rect x="15" y="18" width="70" height="100" rx="10" fill="#ffffff" stroke="#334155" stroke-width="4.5" />
+            <rect x="23" y="26" width="54" height="84" rx="6" fill="none" stroke="#94a3b8" stroke-width="2.5" />
           `;
         } else {
           const ch = JIHAI_CHARS[z];
           const col = z === 5 ? GREEN : z === 6 ? RED : INK;
           content = `
-            <text x="50" y="95" text-anchor="middle" font-family="${SERIF}" font-weight="900" font-size="70" fill="${col}">${ch}</text>
+            <text x="50" y="98" text-anchor="middle" font-family="${SERIF}" font-weight="900" font-size="76" fill="${col}">${ch}</text>
           `;
         }
       }
 
-      const borderStroke = highlight ? '#f59e0b' : '#94a3b8';
-      const borderWidth = highlight ? '4' : '2.5';
-      const codeStr = TILE_CODES[tileIdx] || '';
-      const guideBadge = showCornerGuide ? `
-        <rect x="5" y="5" width="33" height="22" rx="5" fill="#0f172a" opacity="0.9" />
-        <text x="21.5" y="20.5" text-anchor="middle" font-family="Inter, monospace" font-weight="900" font-size="15" fill="#ffffff">${codeStr}</text>
-      ` : '';
+      const borderStroke = highlight ? '#d97706' : '#64748b';
+      const borderWidth = highlight ? '4.5' : '3';
+      const faceBg = highlight ? '#fffbeb' : '#ffffff';
 
       return `
-        <svg ${sizeAttr} viewBox="0 0 100 138">
-          <!-- Crisp 3D tile base -->
-          <rect x="2" y="7" width="96" height="128" rx="13" fill="#cbd5e1" />
-          <rect x="2" y="4" width="96" height="128" rx="13" fill="#f59e0b" />
-          <!-- Bright Ivory-White Tile Face -->
-          <rect x="2" y="2" width="96" height="126" rx="13" fill="#ffffff" stroke="${borderStroke}" stroke-width="${borderWidth}" />
+        <svg viewBox="0 0 100 138" class="w-full h-full select-none">
+          <rect x="2" y="6" width="96" height="130" rx="11" fill="#cbd5e1" />
+          <rect x="2" y="3.5" width="96" height="130" rx="11" fill="#f59e0b" />
+          <rect x="2" y="2" width="96" height="128" rx="11" fill="${faceBg}" stroke="${borderStroke}" stroke-width="${borderWidth}" />
           ${content}
-          ${guideBadge}
+        </svg>
+      `;
+    }
+
+    /**
+     * Renders a dedicated sideways tile SVG (viewBox="0 0 138 100") for open melds (Pon / Chi / Minkan).
+     * Draws the sideways 3D tile body directly and rotates only the 100x138 inner artwork via `<g transform="translate(0, 100) rotate(-90)">`,
+     * guaranteeing exact bottom alignment and zero bounding-box distortion on all mobile screens.
+     */
+    function renderSidewaysTileSVG(tileIdx) {
+      const innerSvg = renderTileSVG(tileIdx)
+        .replace(/<svg[^>]*>/, '')
+        .replace(/<\/svg>/, '');
+      return `
+        <svg viewBox="0 0 138 100" class="w-full h-full select-none">
+          <g transform="translate(0, 100) rotate(-90)">
+            ${innerSvg}
+          </g>
         </svg>
       `;
     }
@@ -684,9 +551,6 @@
      *************************************************************************/
     const pickRandom = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
-    /**
-     * Given a Dora indicator tile index (0..33), returns the actual Dora tile index (0..33).
-     */
     function getActualDoraIdx(indicatorIdx) {
       if (indicatorIdx < 27) {
         const suitBase = Math.floor(indicatorIdx / 9) * 9;
@@ -694,16 +558,11 @@
         return suitBase + ((pos + 1) % 9);
       }
       if (indicatorIdx <= 30) {
-        // Winds: 東(27)->南(28)->西(29)->北(30)->東(27)
         return 27 + ((indicatorIdx - 27 + 1) % 4);
       }
-      // Dragons: 白(31)->發(32)->中(33)->白(31)
       return 31 + ((indicatorIdx - 31 + 1) % 3);
     }
 
-    /**
-     * Computes exact points with Kiriage Mangan (3飜40符 & 4飜30符 -> 満貫)
-     */
     function computeMahjongPoints(fu, han, isDealer, isTsumo) {
       let basePoints = fu * Math.pow(2, han + 2);
       let limitName = '';
@@ -714,11 +573,10 @@
       else if (han >= 8) { basePoints = 4000; limitName = '倍満'; }
       else if (han >= 6) { basePoints = 3000; limitName = '跳満'; }
       else if (han >= 5 || basePoints >= 2000) { basePoints = 2000; limitName = '満貫'; }
-      else if (isKiriageMangan) { basePoints = 2000; limitName = '切り上げ満貫'; }
+      else if (isKiriageMangan) { basePoints = 2000; limitName = '満貫(切上)'; }
 
       const ceil100 = (n) => Math.ceil(n / 100) * 100;
       let scoreLabel = '';
-      let detailFormula = '';
       let expectedSingle = 0;
       let expectedKo = 0;
       let expectedOya = 0;
@@ -727,17 +585,11 @@
         if (isTsumo) {
           const koPay = ceil100(basePoints * 2);
           expectedSingle = koPay;
-          scoreLabel = `${koPay}点オール`;
-          detailFormula = isKiriageMangan
-            ? `${fu}符${han}飜（切り上げ満貫）→ 親ツモ ${koPay}点オール（計${koPay * 3}点）`
-            : `基本点 ${Math.round(basePoints)}点 × 2（100点未満切上）＝ ${koPay}点オール（計${koPay * 3}点）`;
+          scoreLabel = `${koPay.toLocaleString()}点オール`;
         } else {
           const ronPay = ceil100(basePoints * 6);
           expectedSingle = ronPay;
-          scoreLabel = `${ronPay}点`;
-          detailFormula = isKiriageMangan
-            ? `${fu}符${han}飜（切り上げ満貫）→ 親ロン ${ronPay}点`
-            : `基本点 ${Math.round(basePoints)}点 × 6（100点未満切上）＝ 親ロン ${ronPay}点`;
+          scoreLabel = `${ronPay.toLocaleString()}点`;
         }
       } else {
         if (isTsumo) {
@@ -745,17 +597,11 @@
           const oyaPay = ceil100(basePoints * 2);
           expectedKo = koPay;
           expectedOya = oyaPay;
-          scoreLabel = `子 ${koPay}点 / 親 ${oyaPay}点`;
-          detailFormula = isKiriageMangan
-            ? `${fu}符${han}飜（切り上げ満貫）→ 子 ${koPay}点 / 親 ${oyaPay}点（計${koPay * 2 + oyaPay}点）`
-            : `基本点 ${Math.round(basePoints)}点 → 子 ${koPay}点 / 親 ${oyaPay}点（計${koPay * 2 + oyaPay}点）`;
+          scoreLabel = `${koPay.toLocaleString()} / ${oyaPay.toLocaleString()}点`;
         } else {
           const ronPay = ceil100(basePoints * 4);
           expectedSingle = ronPay;
-          scoreLabel = `${ronPay}点`;
-          detailFormula = isKiriageMangan
-            ? `${fu}符${han}飜（切り上げ満貫）→ 子ロン ${ronPay}点`
-            : `基本点 ${Math.round(basePoints)}点 × 4（100点未満切上）＝ 子ロン ${ronPay}点`;
+          scoreLabel = `${ronPay.toLocaleString()}点`;
         }
       }
 
@@ -764,19 +610,12 @@
         limitName,
         isKiriageMangan,
         scoreLabel,
-        detailFormula,
         expectedSingle,
         expectedKo,
         expectedOya
       };
     }
 
-    /**
-     * Exact Koutenhou (高点法) Solver for a generated hand:
-     * Given closed tile counts (including 1 copy of winTileIdx), fixed melds (open melds & ankan),
-     * and match context, enumerates all valid decompositions & wait assignments for winTileIdx,
-     * and returns the highest-scoring legal interpretation.
-     */
     function evaluateHandHighestScore({
       closedTilesWithWin,
       fixedMelds,
@@ -786,19 +625,20 @@
       isMenzen,
       isTsumo,
       hasRiichi,
+      hasIppatsu = false,
       doraIndicatorIdx,
-      uraDoraIndicatorIdx
+      uraDoraIndicatorIdx = null
     }) {
       const actualDoraIdx = getActualDoraIdx(doraIndicatorIdx);
-      const actualUraDoraIdx = hasRiichi && uraDoraIndicatorIdx !== null
+      const actualUraDoraIdx = (hasRiichi && uraDoraIndicatorIdx !== null)
         ? getActualDoraIdx(uraDoraIndicatorIdx)
-        : null;
+        : -1;
 
       const allTilesInHand = [...closedTilesWithWin];
       fixedMelds.forEach(m => allTilesInHand.push(...m.tiles));
 
       const doraCount = allTilesInHand.filter(t => t === actualDoraIdx).length;
-      const uraDoraCount = (hasRiichi && actualUraDoraIdx !== null)
+      const uraDoraCount = actualUraDoraIdx >= 0
         ? allTilesInHand.filter(t => t === actualUraDoraIdx).length
         : 0;
 
@@ -807,7 +647,7 @@
 
       const candidates = [];
 
-      // 1. Check Chiitoitsu (if no fixedMelds and 14 closed tiles form 7 distinct pairs)
+      // 1. Chiitoitsu (25 Fu fixed)
       if (fixedMelds.length === 0 && closedTilesWithWin.length === 14) {
         const pairs = [];
         for (let i = 0; i < 34; i++) {
@@ -816,14 +656,15 @@
         if (pairs.length === 7) {
           const yakuList = [];
           if (hasRiichi) yakuList.push({ name: 'リーチ', han: 1 });
-          if (isTsumo) yakuList.push({ name: '門前清自摸和（ツモ）', han: 1 });
-          yakuList.push({ name: '七対子（チートイツ）', han: 2 });
+          if (hasRiichi && hasIppatsu) yakuList.push({ name: '一発', han: 1 });
+          if (isTsumo) yakuList.push({ name: '門前清自摸和', han: 1 });
+          yakuList.push({ name: '七対子', han: 2 });
 
           if (allTilesInHand.every(t => !isYaochu(t))) {
-            yakuList.push({ name: '断幺九（タンヤオ）', han: 1 });
+            yakuList.push({ name: '断幺九', han: 1 });
           }
           if (allTilesInHand.every(t => isYaochu(t))) {
-            yakuList.push({ name: '混老頭（ホンロートー）', han: 2 });
+            yakuList.push({ name: '混老頭', han: 2 });
           }
           const suitSet = new Set();
           let hasHonors = false;
@@ -832,15 +673,15 @@
             else suitSet.add(Math.floor(t / 9));
           });
           if (suitSet.size === 1) {
-            if (hasHonors) yakuList.push({ name: '混一色（ホンイツ）', han: 3 });
-            else yakuList.push({ name: '清一色（チンイツ）', han: 6 });
+            if (hasHonors) yakuList.push({ name: '混一色', han: 3 });
+            else yakuList.push({ name: '清一色', han: 6 });
           }
 
           if (doraCount > 0) {
-            yakuList.push({ name: `表ドラ ${doraCount}（${TILE_NAMES_JA[actualDoraIdx]}×${doraCount}）`, han: doraCount });
+            yakuList.push({ name: `ドラ (${TILE_NAMES_JA[actualDoraIdx]}×${doraCount})`, han: doraCount });
           }
           if (uraDoraCount > 0) {
-            yakuList.push({ name: `裏ドラ ${uraDoraCount}（${TILE_NAMES_JA[actualUraDoraIdx]}×${uraDoraCount}）`, han: uraDoraCount });
+            yakuList.push({ name: `裏ドラ (${TILE_NAMES_JA[actualUraDoraIdx]}×${uraDoraCount})`, han: uraDoraCount });
           }
 
           const totalHan = yakuList.reduce((s, y) => s + y.han, 0);
@@ -849,20 +690,11 @@
 
           candidates.push({
             isChiitoitsu: true,
-            chiitoiPairs: pairs,
-            blocks: [],
-            jantou: null,
-            waitType: 'tanki',
             rawFu: 25,
             finalFu: 25,
-            fuVisualBlocks: [{
-              category: '基本符',
-              title: '七対子（固定25符）',
-              tiles: pairs,
-              fu: 25,
-              note: '七対子はツモ・ロン・単騎待ちの符を加算せず一律25符'
-            }],
-            specialRuleNote: '七対子（チートイツ）は切り上げを行わず、一律「25符固定」で計算します。',
+            fuLineItems: [
+              { label: '七対子 (固定符)', fuText: '25符' }
+            ],
             yakuList,
             totalHan,
             scoreInfo
@@ -870,7 +702,7 @@
         }
       }
 
-      // 2. Enumerate Standard 4 Mentsu + 1 Jantou partitions of closedCounts
+      // 2. Standard 4 Mentsu + 1 Jantou
       const neededClosedMentsu = 4 - fixedMelds.length;
       const partitions = [];
 
@@ -885,7 +717,6 @@
           }
           return;
         }
-        // Try Koutsu
         if (counts[first] >= 3) {
           counts[first] -= 3;
           currentMentsu.push({ kind: 'koutsu', tiles: [first, first, first], isOpen: false });
@@ -893,7 +724,6 @@
           currentMentsu.pop();
           counts[first] += 3;
         }
-        // Try Shuntsu
         if (first < 27 && (first % 9) <= 6 && counts[first + 1] > 0 && counts[first + 2] > 0) {
           counts[first]--;
           counts[first + 1]--;
@@ -914,7 +744,6 @@
           extractMentsu(closedCounts, 0, []);
 
           for (const closedMentsuList of partitions) {
-            // Try assigning winTileIdx to Jantou (if jIdx === winTileIdx)
             if (jIdx === winTileIdx) {
               const cand = scoreStandardInterpretation({
                 closedMentsuList,
@@ -929,6 +758,7 @@
                 isMenzen,
                 isTsumo,
                 hasRiichi,
+                hasIppatsu,
                 allTilesInHand,
                 actualDoraIdx,
                 doraCount,
@@ -938,7 +768,6 @@
               if (cand) candidates.push(cand);
             }
 
-            // Try assigning winTileIdx to each closed Mentsu that contains winTileIdx
             for (let mIdx = 0; mIdx < closedMentsuList.length; mIdx++) {
               const m = closedMentsuList[mIdx];
               if (!m.tiles.includes(winTileIdx)) continue;
@@ -970,6 +799,7 @@
                 isMenzen,
                 isTsumo,
                 hasRiichi,
+                hasIppatsu,
                 allTilesInHand,
                 actualDoraIdx,
                 doraCount,
@@ -986,7 +816,6 @@
 
       if (candidates.length === 0) return null;
 
-      // Sort by Koutenhou: highest basePoints -> highest totalHan -> highest finalFu -> highest rawFu
       candidates.sort((a, b) => {
         if (b.scoreInfo.basePoints !== a.scoreInfo.basePoints) return b.scoreInfo.basePoints - a.scoreInfo.basePoints;
         if (b.totalHan !== a.totalHan) return b.totalHan - a.totalHan;
@@ -1010,6 +839,7 @@
       isMenzen,
       isTsumo,
       hasRiichi,
+      hasIppatsu,
       allTilesInHand,
       actualDoraIdx,
       doraCount,
@@ -1032,164 +862,93 @@
         }))
       ];
 
-      const jantou = { tileIdx: jIdx, isWinJantou: winInJantou };
-
-      // Check Pinfu eligibility (Menzen + 4 Shuntsu + Non-Yakuhai Jantou + Ryanmen wait)
       const allShuntsu = blocks.every(b => b.kind === 'shuntsu' && !b.isOpen);
       const isYakuhaiJantou = (jIdx >= 31) || (jIdx === roundWindIdx) || (jIdx === seatWindIdx);
       const isExactPinfu = isMenzen && allShuntsu && !isYakuhaiJantou && waitType === 'ryanmen';
 
-      // ==================== FU CALCULATION (連風牌雀頭 = 2符) ====================
+      // ==================== 1-LINE FU BREAKDOWN ITEMS ====================
       let rawFu = 20;
       let finalFu = 30;
-      const fuVisualBlocks = [];
-      let specialRuleNote = '';
+      const fuLineItems = [{ label: '副底 (基本符)', fuText: '20符' }];
 
       if (isExactPinfu && isTsumo) {
-        fuVisualBlocks.push({
-          category: '副底＋和了方',
-          title: '副底20符（平和ツモ特例 +0符）',
-          tiles: [],
-          fu: 20,
-          note: '平和ツモはツモ符(+2符)を加算せず一律20符'
-        });
-        specialRuleNote = '平和（ピンフ）が成立してツモ和了した場合、ツモ符（+2符）をつけず一律「20符」で計算します。';
+        fuLineItems.push({ label: '平和ツモ特例', fuText: '0符' });
       } else if (isMenzen && !isTsumo) {
         rawFu += 10;
-        fuVisualBlocks.push({
-          category: '副底＋和了方',
-          title: '副底20符 ＋ 門前ロン10符',
-          tiles: [],
-          fu: 30,
-          note: '門前（鳴きなし）のロン和了は+10符'
-        });
+        fuLineItems.push({ label: '門前ロン', fuText: '+10符' });
       } else if (isTsumo) {
         rawFu += 2;
-        fuVisualBlocks.push({
-          category: '副底＋和了方',
-          title: '副底20符 ＋ ツモ和了2符',
-          tiles: [],
-          fu: 22,
-          note: '平和以外のツモ和了は+2符'
-        });
-      } else {
-        fuVisualBlocks.push({
-          category: '副底＋和了方',
-          title: '副底20符（副露ロン +0符）',
-          tiles: [],
-          fu: 20,
-          note: '副露手（鳴きあり）のロン和了は和了符0符'
-        });
+        fuLineItems.push({ label: 'ツモ和了', fuText: '+2符' });
       }
 
-      // 4 Mentsu Fu
-      blocks.forEach((b, idx) => {
-        let bFu = 0;
-        let bTitle = '';
-        let bNote = '';
+      // Mentsu Fu (only list blocks with >0 Fu, or show clean summary)
+      blocks.forEach(b => {
         const t0 = b.tiles[0];
         const yao = isYaochu(t0);
-        const typeLabel = yao ? '么九牌' : '中張牌';
-
-        if (b.kind === 'shuntsu') {
-          bFu = 0;
-          bTitle = `面子${idx + 1}：順子（シュンツ）`;
-          bNote = '順子は常に0符';
-        } else if (b.kind === 'koutsu') {
+        const typeStr = yao ? '么九' : '中張';
+        if (b.kind === 'koutsu') {
           const completedByRon = b.isWinBlock && !isTsumo;
           const isMinkou = b.isOpen || completedByRon;
           if (isMinkou) {
-            bFu = yao ? 4 : 2;
-            bTitle = `面子${idx + 1}：${TILE_NAMES_JA[t0]} 明刻（${typeLabel}）`;
-            bNote = completedByRon
-              ? '⚠️シャンポン待ちロン和了で完成した刻子の為「明刻」扱い'
-              : 'ポンした明刻';
-            if (completedByRon && !specialRuleNote) {
-              specialRuleNote = 'シャンポン待ちをロン和了した場合、ロン牌で完成した3枚組は暗刻ではなく「明刻（中張2符／么九4符）」として計算します。';
-            }
+            const f = yao ? 4 : 2;
+            rawFu += f;
+            const suffix = completedByRon ? '明刻(ロン和了)' : '明刻';
+            fuLineItems.push({ label: `${TILE_NAMES_JA[t0]} ${suffix}(${typeStr})`, fuText: `+${f}符` });
           } else {
-            bFu = yao ? 8 : 4;
-            bTitle = `面子${idx + 1}：${TILE_NAMES_JA[t0]} 暗刻（${typeLabel}）`;
-            bNote = '手牌内で完成していた暗刻';
+            const f = yao ? 8 : 4;
+            rawFu += f;
+            fuLineItems.push({ label: `${TILE_NAMES_JA[t0]} 暗刻(${typeStr})`, fuText: `+${f}符` });
           }
         } else if (b.kind === 'kantsu') {
           if (b.isOpen) {
-            bFu = yao ? 16 : 8;
-            bTitle = `面子${idx + 1}：${TILE_NAMES_JA[t0]} 明槓（${typeLabel}）`;
-            bNote = '鳴いた槓子（ミンカン）';
+            const f = yao ? 16 : 8;
+            rawFu += f;
+            fuLineItems.push({ label: `${TILE_NAMES_JA[t0]} 明槓(${typeStr})`, fuText: `+${f}符` });
           } else {
-            bFu = yao ? 32 : 16;
-            bTitle = `面子${idx + 1}：${TILE_NAMES_JA[t0]} 暗槓（${typeLabel}）`;
-            bNote = '門前の暗槓（アンカン）';
+            const f = yao ? 32 : 16;
+            rawFu += f;
+            fuLineItems.push({ label: `${TILE_NAMES_JA[t0]} 暗槓(${typeStr})`, fuText: `+${f}符` });
           }
         }
-
-        rawFu += bFu;
-        fuVisualBlocks.push({
-          category: '面子符',
-          title: bTitle,
-          tiles: b.tiles,
-          isOpen: b.isOpen,
-          kind: b.kind,
-          fu: bFu,
-          note: bNote
-        });
       });
 
-      // Jantou Fu (連風牌の雀頭も2符ルール!)
-      let jFu = 0;
-      let jTitle = `雀頭：${TILE_NAMES_JA[jIdx]}対子`;
-      let jNote = '数牌・オタ風の雀頭は0符';
+      // Jantou Fu (連風牌の雀頭も2符)
       if (jIdx === roundWindIdx && jIdx === seatWindIdx) {
-        jFu = 2;
-        jTitle = `雀頭：${TILE_NAMES_JA[jIdx]}（連風牌・ダブ${TILE_NAMES_JA[jIdx]}）`;
-        jNote = '連風牌（場風＋自風）の雀頭も2符として計算（+2符）';
+        rawFu += 2;
+        fuLineItems.push({ label: `${TILE_NAMES_JA[jIdx]}(連風牌) 雀頭`, fuText: '+2符' });
       } else if (jIdx === roundWindIdx) {
-        jFu = 2;
-        jTitle = `雀頭：${TILE_NAMES_JA[jIdx]}（場風牌）`;
-        jNote = '場風の役牌雀頭で+2符';
+        rawFu += 2;
+        fuLineItems.push({ label: `${TILE_NAMES_JA[jIdx]}(場風) 雀頭`, fuText: '+2符' });
       } else if (jIdx === seatWindIdx) {
-        jFu = 2;
-        jTitle = `雀頭：${TILE_NAMES_JA[jIdx]}（自風牌）`;
-        jNote = '自風の役牌雀頭で+2符';
+        rawFu += 2;
+        fuLineItems.push({ label: `${TILE_NAMES_JA[jIdx]}(自風) 雀頭`, fuText: '+2符' });
       } else if (jIdx >= 31) {
-        jFu = 2;
-        jTitle = `雀頭：${TILE_NAMES_JA[jIdx]}（三元牌）`;
-        jNote = '白・發・中の役牌雀頭で+2符';
+        rawFu += 2;
+        fuLineItems.push({ label: `${TILE_NAMES_JA[jIdx]}(三元牌) 雀頭`, fuText: '+2符' });
+      } else {
+        fuLineItems.push({ label: `${TILE_NAMES_JA[jIdx]} 雀頭`, fuText: '0符' });
       }
-      rawFu += jFu;
-      fuVisualBlocks.push({
-        category: '雀頭符',
-        title: jTitle,
-        tiles: [jIdx, jIdx],
-        fu: jFu,
-        note: jNote
-      });
 
       // Wait Fu
-      const waitNames = {
-        ryanmen: '両面（リャンメン）待ち',
-        shanpon: 'シャンポン（双碰）待ち',
-        kanchan: 'カンチャン（嵌張）待ち',
-        penchan: 'ペンチャン（辺張）待ち',
-        tanki: '単騎（タンキ）待ち'
+      const waitLabels = {
+        ryanmen: '両面待ち',
+        shanpon: 'シャンポン待ち',
+        kanchan: 'カンチャン待ち',
+        penchan: 'ペンチャン待ち',
+        tanki: '単騎待ち'
       };
       const wFu = (waitType === 'kanchan' || waitType === 'penchan' || waitType === 'tanki') ? 2 : 0;
       rawFu += wFu;
-      fuVisualBlocks.push({
-        category: '待ち符',
-        title: `待ち：${waitNames[waitType]}（和了牌 ${TILE_NAMES_JA[winTileIdx]}）`,
-        tiles: [winTileIdx],
-        fu: wFu,
-        note: wFu > 0 ? 'カンチャン・ペンチャン・単騎待ちは+2符' : '両面・シャンポン待ちは0符'
+      fuLineItems.push({
+        label: `${waitLabels[waitType]} (${TILE_NAMES_JA[winTileIdx]})`,
+        fuText: wFu > 0 ? '+2符' : '0符'
       });
 
-      // Final Fu Rounding
       if (isExactPinfu && isTsumo) {
         finalFu = 20;
       } else if (!isMenzen && rawFu === 20) {
         finalFu = 30;
-        specialRuleNote = '副露してすべての面子・雀頭・待ちに符がつかず副底20符のみになる形（喰い平和形）は、最低の「30符」へ繰り上げます。';
+        fuLineItems.push({ label: '喰い平和形 繰上', fuText: '30符' });
       } else {
         finalFu = Math.ceil(rawFu / 10) * 10;
         if (finalFu < 30) finalFu = 30;
@@ -1198,69 +957,62 @@
       // ==================== YAKU EVALUATION ====================
       const yakuList = [];
       if (hasRiichi && isMenzen) yakuList.push({ name: 'リーチ', han: 1 });
-      if (isMenzen && isTsumo) yakuList.push({ name: '門前清自摸和（ツモ）', han: 1 });
-      if (isExactPinfu) yakuList.push({ name: '平和（ピンフ）', han: 1 });
+      if (hasRiichi && isMenzen && hasIppatsu) yakuList.push({ name: '一発', han: 1 });
+      if (isMenzen && isTsumo) yakuList.push({ name: '門前清自摸和', han: 1 });
+      if (isExactPinfu) yakuList.push({ name: '平和', han: 1 });
 
-      // Tanyao
       if (allTilesInHand.every(t => !isYaochu(t))) {
-        yakuList.push({ name: '断幺九（タンヤオ）', han: 1 });
+        yakuList.push({ name: '断幺九', han: 1 });
       }
 
-      // Yakuhai
       blocks.forEach(b => {
         if (b.kind === 'koutsu' || b.kind === 'kantsu') {
           const t = b.tiles[0];
           if (t === roundWindIdx && t === seatWindIdx) {
-            yakuList.push({ name: `連風牌：ダブ${TILE_NAMES_JA[t]}`, han: 2 });
+            yakuList.push({ name: `連風牌 ダブ${TILE_NAMES_JA[t]}`, han: 2 });
           } else {
-            if (t === roundWindIdx) yakuList.push({ name: `場風牌：${TILE_NAMES_JA[t]}`, han: 1 });
-            if (t === seatWindIdx) yakuList.push({ name: `自風牌：${TILE_NAMES_JA[t]}`, han: 1 });
+            if (t === roundWindIdx) yakuList.push({ name: `場風 ${TILE_NAMES_JA[t]}`, han: 1 });
+            if (t === seatWindIdx) yakuList.push({ name: `自風 ${TILE_NAMES_JA[t]}`, han: 1 });
           }
-          if (t === 31) yakuList.push({ name: '役牌：白', han: 1 });
-          if (t === 32) yakuList.push({ name: '役牌：發', han: 1 });
-          if (t === 33) yakuList.push({ name: '役牌：中', han: 1 });
+          if (t === 31) yakuList.push({ name: '役牌 白', han: 1 });
+          if (t === 32) yakuList.push({ name: '役牌 發', han: 1 });
+          if (t === 33) yakuList.push({ name: '役牌 中', han: 1 });
         }
       });
 
-      // Toitoi
       const allKoutsuOrKan = blocks.every(b => b.kind === 'koutsu' || b.kind === 'kantsu');
       if (allKoutsuOrKan) {
-        yakuList.push({ name: '対々和（トイトイ）', han: 2 });
+        yakuList.push({ name: '対々和', han: 2 });
       }
 
-      // Sanankou (concealed koutsu/ankan; ron on shanpon is minkou)
       const ankouCount = blocks.filter(b =>
         (b.kind === 'koutsu' || b.kind === 'kantsu') &&
         !b.isOpen &&
         !(b.isWinBlock && !isTsumo)
       ).length;
       if (ankouCount === 3) {
-        yakuList.push({ name: '三暗刻（サンアンコウ）', han: 2 });
+        yakuList.push({ name: '三暗刻', han: 2 });
       }
 
-      // Sankantsu
       const kanCount = blocks.filter(b => b.kind === 'kantsu').length;
       if (kanCount === 3) {
         yakuList.push({ name: '三槓子', han: 2 });
       }
 
-      // Shousangen
       const dragonKoutsuCount = blocks.filter(b => (b.kind === 'koutsu' || b.kind === 'kantsu') && b.tiles[0] >= 31).length;
       if (dragonKoutsuCount === 2 && jIdx >= 31) {
         yakuList.push({ name: '小三元', han: 2 });
       }
 
-      // Iipeikou / Ryanpeikou (Menzen)
       if (isMenzen) {
         const shuntsuKeys = blocks.filter(b => b.kind === 'shuntsu').map(b => b.tiles.join(','));
         const keyCounts = {};
         shuntsuKeys.forEach(k => { keyCounts[k] = (keyCounts[k] || 0) + 1; });
         const pairsOfSeq = Object.values(keyCounts).reduce((acc, c) => acc + Math.floor(c / 2), 0);
-        if (pairsOfSeq === 2) yakuList.push({ name: '二盃口（リャンペイコウ）', han: 3 });
-        else if (pairsOfSeq === 1) yakuList.push({ name: '一盃口（イーペイコウ）', han: 1 });
+        if (pairsOfSeq === 2) yakuList.push({ name: '二盃口', han: 3 });
+        else if (pairsOfSeq === 1) yakuList.push({ name: '一盃口', han: 1 });
       }
 
-      // Sanshoku Doujun
       const shuntsuStarts = blocks.filter(b => b.kind === 'shuntsu').map(b => b.tiles[0]);
       for (let pos = 0; pos <= 6; pos++) {
         if (shuntsuStarts.includes(pos) && shuntsuStarts.includes(9 + pos) && shuntsuStarts.includes(18 + pos)) {
@@ -1269,7 +1021,6 @@
         }
       }
 
-      // Sanshoku Doukou
       const koutsuTiles = blocks.filter(b => b.kind === 'koutsu' || b.kind === 'kantsu').map(b => b.tiles[0]);
       for (let pos = 0; pos <= 8; pos++) {
         if (koutsuTiles.includes(pos) && koutsuTiles.includes(9 + pos) && koutsuTiles.includes(18 + pos)) {
@@ -1278,99 +1029,77 @@
         }
       }
 
-      // Ittsuu
       for (const sBase of [0, 9, 18]) {
         if (shuntsuStarts.includes(sBase) && shuntsuStarts.includes(sBase + 3) && shuntsuStarts.includes(sBase + 6)) {
-          yakuList.push({ name: '一気通貫（イッツー）', han: isMenzen ? 2 : 1 });
+          yakuList.push({ name: '一気通貫', han: isMenzen ? 2 : 1 });
           break;
         }
       }
 
-      // Honroutou / Junchan / Chanta
       const hasShuntsu = blocks.some(b => b.kind === 'shuntsu');
       const allBlocksHaveYaochu = blocks.every(b => b.tiles.some(t => isYaochu(t))) && isYaochu(jIdx);
       const hasHonorTile = allTilesInHand.some(t => t >= 27);
       if (allBlocksHaveYaochu) {
         if (!hasShuntsu) {
-          yakuList.push({ name: '混老頭（ホンロートー）', han: 2 });
+          yakuList.push({ name: '混老頭', han: 2 });
         } else if (!hasHonorTile) {
-          yakuList.push({ name: '純全帯幺九（ジュンチャン）', han: isMenzen ? 3 : 2 });
+          yakuList.push({ name: '純全帯幺九', han: isMenzen ? 3 : 2 });
         } else {
-          yakuList.push({ name: '混全帯幺九（チャンタ）', han: isMenzen ? 2 : 1 });
+          yakuList.push({ name: '混全帯幺九', han: isMenzen ? 2 : 1 });
         }
       }
 
-      // Honitsu / Chinitsu
       const suitSet = new Set();
       allTilesInHand.forEach(t => {
         if (t < 27) suitSet.add(Math.floor(t / 9));
       });
       if (suitSet.size === 1) {
-        if (hasHonorTile) yakuList.push({ name: '混一色（ホンイツ）', han: isMenzen ? 3 : 2 });
-        else yakuList.push({ name: '清一色（チンイツ）', han: isMenzen ? 6 : 5 });
+        if (hasHonorTile) yakuList.push({ name: '混一色', han: isMenzen ? 3 : 2 });
+        else yakuList.push({ name: '清一色', han: isMenzen ? 6 : 5 });
       }
 
-      // Must have at least 1 Yaku before Dora
       if (yakuList.length === 0) return null;
 
       if (doraCount > 0) {
-        yakuList.push({ name: `表ドラ ${doraCount}（${TILE_NAMES_JA[actualDoraIdx]}×${doraCount}）`, han: doraCount });
+        yakuList.push({ name: `ドラ (${TILE_NAMES_JA[actualDoraIdx]}×${doraCount})`, han: doraCount });
       }
       if (uraDoraCount > 0) {
-        yakuList.push({ name: `裏ドラ ${uraDoraCount}（${TILE_NAMES_JA[actualUraDoraIdx]}×${uraDoraCount}）`, han: uraDoraCount });
+        yakuList.push({ name: `裏ドラ (${TILE_NAMES_JA[actualUraDoraIdx]}×${uraDoraCount})`, han: uraDoraCount });
       }
 
       const totalHan = yakuList.reduce((s, y) => s + y.han, 0);
       const isDealer = seatWindIdx === 27;
       const scoreInfo = computeMahjongPoints(finalFu, totalHan, isDealer, isTsumo);
 
-      if (scoreInfo.isKiriageMangan) {
-        const kirNote = `${finalFu}符${totalHan}飜は「切り上げ満貫」として満貫（子8000点・2000/4000、親12000点・4000オール）で計算します。`;
-        specialRuleNote = specialRuleNote ? `${specialRuleNote} / ${kirNote}` : kirNote;
-      }
-
       return {
         isChiitoitsu: false,
-        chiitoiPairs: [],
-        blocks,
-        jantou,
-        waitType,
         rawFu,
         finalFu,
-        fuVisualBlocks,
-        specialRuleNote,
+        fuLineItems,
         yakuList,
         totalHan,
         scoreInfo
       };
     }
 
-    /**
-     * Generates a 100% valid, unambiguous Mahjong winning hand focused on 1~4 Han
-     * where Fu calculation directly determines the score.
-     */
     function generateRigorousFuProblem() {
       const archetypes = [
         'pinfu', 'menzen_standard', 'open_yakuhai', 'tanyao_standard',
         'high_fu_kan', 'toitoi_sanankou', 'menzen_ankou_tanki',
-        'shanpon_ron_trap', 'open_pinfu_30fu', 'double_wind_jantou', 'chiitoitsu_25fu',
-        'kiriage_mangan_target'
+        'shanpon_ron_trap', 'open_pinfu_30fu', 'double_wind_jantou', 'chiitoitsu_25fu'
       ];
 
       for (let attempt = 0; attempt < 300; attempt++) {
         const arch = pickRandom(archetypes);
         const prob = tryBuildValidatedHand(arch);
         if (!prob) continue;
-
-        // Focus on 1~4 Han where Fu matters (plus occasional 5 Han Mangan)
         if (prob.totalHan >= 1 && prob.totalHan <= 4) {
           return prob;
         }
-        if (prob.totalHan === 5 && Math.random() < 0.15) {
+        if (prob.totalHan === 5 && Math.random() < 0.12) {
           return prob;
         }
       }
-      // Fallback loop without Han cap
       for (let attempt = 0; attempt < 200; attempt++) {
         const prob = tryBuildValidatedHand('menzen_standard');
         if (prob) return prob;
@@ -1398,7 +1127,6 @@
       let winTileIdx = 0;
       const suits = [0, 9, 18];
 
-      // 1. CHIITOITSU (25符固定)
       if (arch === 'chiitoitsu_25fu') {
         isMenzen = true;
         isTsumo = Math.random() < 0.5;
@@ -1411,10 +1139,7 @@
           closedTilesWithWin.push(pool[i], pool[i]);
         }
         winTileIdx = pickRandom(pairs);
-      }
-
-      // 2. PINFU (20符ツモ / 30符ロン)
-      else if (arch === 'pinfu') {
+      } else if (arch === 'pinfu') {
         isMenzen = true;
         isTsumo = Math.random() < 0.6;
         hasRiichi = Math.random() < 0.65;
@@ -1439,10 +1164,7 @@
         const jIdx = pickRandom(jPool);
         if (!take(jIdx, 2)) return null;
         closedTilesWithWin.push(jIdx, jIdx);
-      }
-
-      // 3. OPEN PINFU SHAPE (喰い平和形30符)
-      else if (arch === 'open_pinfu_30fu') {
+      } else if (arch === 'open_pinfu_30fu') {
         isMenzen = false;
         isTsumo = false;
         hasRiichi = false;
@@ -1470,10 +1192,7 @@
         const jIdx = jS + 1 + Math.floor(Math.random() * 7);
         if (!take(jIdx, 2)) return null;
         closedTilesWithWin.push(jIdx, jIdx);
-      }
-
-      // 4. SHANPON RON TRAP (シャンポン待ちロン＝明刻扱い)
-      else if (arch === 'shanpon_ron_trap') {
+      } else if (arch === 'shanpon_ron_trap') {
         isMenzen = Math.random() < 0.7;
         isTsumo = false;
         hasRiichi = isMenzen;
@@ -1502,10 +1221,7 @@
         const jIdx = pickRandom([31, 32, 33, roundWindIdx, seatWindIdx, 5, 15]);
         if (!take(jIdx, 2)) return null;
         closedTilesWithWin.push(jIdx, jIdx);
-      }
-
-      // 5. DOUBLE WIND JANTOU (連風牌雀頭＝2符ルール確認)
-      else if (arch === 'double_wind_jantou') {
+      } else if (arch === 'double_wind_jantou') {
         const dblWind = pickRandom([27, 28]);
         roundWindIdx = dblWind;
         seatWindIdx = dblWind;
@@ -1538,10 +1254,7 @@
         for (const t of wSeq) if (!take(t, 1)) return null;
         closedTilesWithWin.push(...wSeq);
         winTileIdx = Math.random() < 0.5 ? wSeq[1] : wSeq[0];
-      }
-
-      // 6. HIGH FU WITH KAN (暗槓・明槓を含む50〜90符)
-      else if (arch === 'high_fu_kan') {
+      } else if (arch === 'high_fu_kan') {
         isMenzen = Math.random() < 0.6;
         isTsumo = Math.random() < 0.5;
         hasRiichi = isMenzen && Math.random() < 0.5;
@@ -1572,10 +1285,7 @@
         const jIdx = pickRandom([31, 32, 33, roundWindIdx, seatWindIdx, 4, 14]);
         if (!take(jIdx, 2)) return null;
         closedTilesWithWin.push(jIdx, jIdx);
-      }
-
-      // 7. TOITOI / SANANKOU
-      else if (arch === 'toitoi_sanankou') {
+      } else if (arch === 'toitoi_sanankou') {
         isMenzen = false;
         isTsumo = Math.random() < 0.5;
         hasRiichi = false;
@@ -1595,10 +1305,7 @@
         if (!take(jIdx, 2)) return null;
         closedTilesWithWin.push(jIdx, jIdx);
         winTileIdx = jIdx;
-      }
-
-      // 8. KIRIAGE MANGAN TARGET (3飜40符 or 4飜30符) & STANDARD HANDS
-      else {
+      } else {
         isMenzen = arch !== 'open_yakuhai';
         isTsumo = Math.random() < 0.45;
         hasRiichi = isMenzen && Math.random() < 0.65;
@@ -1638,7 +1345,6 @@
         }
       }
 
-      // Pick valid Dora indicator (and Ura-Dora indicator if Riichi) within 4-tile limit
       const allHandTiles = [...closedTilesWithWin];
       fixedMelds.forEach(m => allHandTiles.push(...m.tiles));
 
@@ -1646,7 +1352,7 @@
       for (let i = 0; i < 34; i++) {
         if (canUse(i, 1)) validInds.push(i);
       }
-      if (validInds.length < 2) return null;
+      if (validInds.length === 0) return null;
 
       const matchingInds = validInds.filter(ind => allHandTiles.includes(getActualDoraIdx(ind)));
       const doraIndicatorIdx = (matchingInds.length > 0 && Math.random() < 0.45)
@@ -1654,17 +1360,31 @@
         : pickRandom(validInds);
       take(doraIndicatorIdx, 1);
 
+      // Ippatsu (~30% when Riichi) & Ura-Dora Indicator (always drawn when Riichi, respecting 136-tile limit)
+      const hasIppatsu = Boolean(hasRiichi && isMenzen && Math.random() < 0.30);
       let uraDoraIndicatorIdx = null;
-      if (hasRiichi) {
-        const validUra = [];
+      if (hasRiichi && isMenzen) {
+        const validUraInds = [];
         for (let i = 0; i < 34; i++) {
-          if (canUse(i, 1)) validUra.push(i);
+          if (canUse(i, 1)) validUraInds.push(i);
         }
-        uraDoraIndicatorIdx = pickRandom(validUra);
+        if (validUraInds.length === 0) return null;
+        const matchingUra = validUraInds.filter(ind => allHandTiles.includes(getActualDoraIdx(ind)));
+        uraDoraIndicatorIdx = (matchingUra.length > 0 && Math.random() < 0.32)
+          ? pickRandom(matchingUra)
+          : pickRandom(validUraInds);
         take(uraDoraIndicatorIdx, 1);
       }
 
-      // Run Exact Koutenhou Evaluator
+      // Assign random sideways tile index for each open meld (Pon / Chi / Minkan)
+      fixedMelds.forEach(m => {
+        if (m.isOpen) {
+          m.sidewaysIndex = Math.floor(Math.random() * m.tiles.length);
+        } else {
+          m.sidewaysIndex = -1;
+        }
+      });
+
       const solved = evaluateHandHighestScore({
         closedTilesWithWin,
         fixedMelds,
@@ -1674,6 +1394,7 @@
         isMenzen,
         isTsumo,
         hasRiichi,
+        hasIppatsu,
         doraIndicatorIdx,
         uraDoraIndicatorIdx
       });
@@ -1687,6 +1408,7 @@
         isMenzen,
         isTsumo,
         hasRiichi,
+        hasIppatsu,
         doraIndicatorIdx,
         uraDoraIndicatorIdx,
         closedTilesWithWin,
@@ -1697,23 +1419,176 @@
     }
 
     /*************************************************************************
-     * 3. UI STATE, DIRECT TENKEY INPUT & RENDERING CONTROLLERS
+     * 3. REVIEW STORAGE (localStorage) & UI STATE CONTROLLERS
      *************************************************************************/
+    const STORAGE_KEY_REVIEW = 'mahjong_fu_trainer_review_v1';
+
     const state = {
       currentProb: null,
       answered: false,
-
-      // Direct input state
-      isDualInput: false, // true only for 子ツモ
-      activeField: 'single', // 'single' | 'ko' | 'oya'
+      isReviewMode: false,
+      reviewQueue: [],
+      isDualInput: false,
+      activeField: 'single',
       valSingle: '',
       valKo: '',
       valOya: '',
-
       streak: 0,
       correctCount: 0,
       totalCount: 0
     };
+
+    function createProblemId(p) {
+      const closedSorted = [...p.closedTilesWithWin].sort((a, b) => a - b).join(',');
+      const meldsKey = p.fixedMelds.map(m => `${m.kind}:${m.isOpen ? 1 : 0}:${m.sidewaysIndex ?? 0}:${m.tiles.join('.')}`).join('|');
+      return [
+        p.roundWindIdx,
+        p.seatWindIdx,
+        p.isMenzen ? 1 : 0,
+        p.isTsumo ? 1 : 0,
+        p.hasRiichi ? 1 : 0,
+        p.hasIppatsu ? 1 : 0,
+        p.doraIndicatorIdx,
+        p.uraDoraIndicatorIdx ?? -1,
+        p.winTileIdx,
+        closedSorted,
+        meldsKey
+      ].join('_');
+    }
+
+    function serializeProblemForStorage(p) {
+      return {
+        id: createProblemId(p),
+        roundWindIdx: p.roundWindIdx,
+        seatWindIdx: p.seatWindIdx,
+        isMenzen: p.isMenzen,
+        isTsumo: p.isTsumo,
+        hasRiichi: p.hasRiichi,
+        hasIppatsu: Boolean(p.hasIppatsu),
+        doraIndicatorIdx: p.doraIndicatorIdx,
+        uraDoraIndicatorIdx: p.uraDoraIndicatorIdx ?? null,
+        closedTilesWithWin: [...p.closedTilesWithWin],
+        fixedMelds: p.fixedMelds.map(m => ({
+          kind: m.kind,
+          tiles: [...m.tiles],
+          isOpen: m.isOpen,
+          sidewaysIndex: typeof m.sidewaysIndex === 'number' ? m.sidewaysIndex : (m.isOpen ? 0 : -1)
+        })),
+        winTileIdx: p.winTileIdx
+      };
+    }
+
+    function hydrateProblemFromStorage(raw) {
+      if (!raw || !Array.isArray(raw.closedTilesWithWin)) return null;
+      const fixedMelds = (raw.fixedMelds || []).map(m => ({
+        kind: m.kind,
+        tiles: [...m.tiles],
+        isOpen: Boolean(m.isOpen),
+        sidewaysIndex: typeof m.sidewaysIndex === 'number' ? m.sidewaysIndex : (m.isOpen ? 0 : -1)
+      }));
+      const solved = evaluateHandHighestScore({
+        closedTilesWithWin: raw.closedTilesWithWin,
+        fixedMelds,
+        winTileIdx: raw.winTileIdx,
+        roundWindIdx: raw.roundWindIdx,
+        seatWindIdx: raw.seatWindIdx,
+        isMenzen: raw.isMenzen,
+        isTsumo: raw.isTsumo,
+        hasRiichi: raw.hasRiichi,
+        hasIppatsu: Boolean(raw.hasIppatsu),
+        doraIndicatorIdx: raw.doraIndicatorIdx,
+        uraDoraIndicatorIdx: raw.uraDoraIndicatorIdx ?? null
+      });
+      if (!solved) return null;
+      return {
+        id: raw.id || createProblemId(raw),
+        roundWindIdx: raw.roundWindIdx,
+        seatWindIdx: raw.seatWindIdx,
+        isDealer: raw.seatWindIdx === 27,
+        isMenzen: raw.isMenzen,
+        isTsumo: raw.isTsumo,
+        hasRiichi: raw.hasRiichi,
+        hasIppatsu: Boolean(raw.hasIppatsu),
+        doraIndicatorIdx: raw.doraIndicatorIdx,
+        uraDoraIndicatorIdx: raw.uraDoraIndicatorIdx ?? null,
+        closedTilesWithWin: [...raw.closedTilesWithWin],
+        fixedMelds,
+        winTileIdx: raw.winTileIdx,
+        ...solved
+      };
+    }
+
+    function loadReviewQueueFromStorage() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY_REVIEW);
+        if (!raw) {
+          state.reviewQueue = [];
+          return;
+        }
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          state.reviewQueue = parsed.filter(item => item && Array.isArray(item.closedTilesWithWin));
+        }
+      } catch (e) {
+        state.reviewQueue = [];
+      }
+    }
+
+    function saveReviewQueueToStorage() {
+      try {
+        localStorage.setItem(STORAGE_KEY_REVIEW, JSON.stringify(state.reviewQueue));
+      } catch (e) {
+        // Ignore storage quota errors
+      }
+      updateReviewHeaderUI();
+    }
+
+    function isProblemInReviewQueue(p) {
+      if (!p) return false;
+      const id = createProblemId(p);
+      return state.reviewQueue.some(item => item.id === id);
+    }
+
+    function addProblemToReviewQueue(p) {
+      const id = createProblemId(p);
+      if (state.reviewQueue.some(item => item.id === id)) return false;
+      state.reviewQueue.push(serializeProblemForStorage(p));
+      saveReviewQueueToStorage();
+      return true;
+    }
+
+    function removeProblemFromReviewQueue(p) {
+      const id = createProblemId(p);
+      const before = state.reviewQueue.length;
+      state.reviewQueue = state.reviewQueue.filter(item => item.id !== id);
+      if (state.reviewQueue.length !== before) {
+        saveReviewQueueToStorage();
+        return true;
+      }
+      return false;
+    }
+
+    function updateReviewHeaderUI() {
+      const btn = document.getElementById('btn-toggle-review');
+      const pill = document.getElementById('mode-indicator-pill');
+      const count = state.reviewQueue.length;
+
+      if (state.isReviewMode && count === 0) {
+        state.isReviewMode = false;
+      }
+
+      if (state.isReviewMode) {
+        btn.textContent = `通常出題へ (残${count}問)`;
+        btn.className = 'px-2 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 active:scale-95 text-white font-black text-[11px] sm:text-xs border border-rose-700 whitespace-nowrap transition';
+        pill.classList.remove('hidden');
+      } else {
+        btn.textContent = `復習 (${count}問)`;
+        btn.className = count > 0
+          ? 'px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 active:scale-95 text-rose-700 font-black text-[11px] sm:text-xs border border-rose-200 whitespace-nowrap transition'
+          : 'px-2 py-1 rounded-lg bg-slate-100 text-slate-400 font-bold text-[11px] sm:text-xs border border-slate-200 whitespace-nowrap transition';
+        pill.classList.add('hidden');
+      }
+    }
 
     function updateStatsUI(isCorrect) {
       state.totalCount++;
@@ -1723,96 +1598,137 @@
       } else {
         state.streak = 0;
       }
-      const pct = Math.round((state.correctCount / state.totalCount) * 100);
-      document.getElementById('stat-streak').textContent = state.streak;
-      document.getElementById('stat-accuracy').textContent = `${state.correctCount}/${state.totalCount}`;
-      document.getElementById('stat-streak-mobile').textContent = state.streak;
-      document.getElementById('stat-accuracy-mobile').textContent = `${state.correctCount}/${state.totalCount} (${pct}%)`;
+      const rate = state.totalCount > 0 ? Math.round((state.correctCount / state.totalCount) * 100) : 0;
+      document.getElementById('stat-total').textContent = `${state.totalCount}問`;
+      document.getElementById('stat-accuracy').textContent = `${state.correctCount}問 (${rate}%)`;
+      document.getElementById('stat-streak').textContent = `${state.streak}問`;
     }
 
     function generateAndLoadProblem() {
-      state.currentProb = generateRigorousFuProblem();
-      state.answered = false;
+      updateReviewHeaderUI();
 
-      const p = state.currentProb;
-
-      // 1. Update Match Situation HUD (No Spoilers)
-      const seatBadge = document.getElementById('hud-seat-badge');
-      seatBadge.textContent = `${TILE_NAMES_JA[p.seatWindIdx]}家(${p.isDealer ? '親' : '子'})`;
-      seatBadge.className = p.isDealer
-        ? 'px-2 py-1 rounded-lg bg-amber-600 text-white font-black text-xs shrink-0'
-        : 'px-2 py-1 rounded-lg bg-emerald-600 text-white font-black text-xs shrink-0';
-
-      document.getElementById('hud-round-wind').textContent = `${TILE_NAMES_JA[p.roundWindIdx]}1局`;
-      const winTypeEl = document.getElementById('hud-win-type');
-      winTypeEl.textContent = p.isTsumo ? 'ツモ和了' : 'ロン和了';
-      winTypeEl.className = p.isTsumo
-        ? 'text-[11px] font-extrabold text-blue-700'
-        : 'text-[11px] font-extrabold text-rose-700';
-
-      document.getElementById('hud-riichi-status').textContent = p.isMenzen
-        ? (p.hasRiichi ? '門前・リーチ' : '門前・ダマテン')
-        : '副露（鳴きあり）';
-
-      document.getElementById('hud-dora-tile').innerHTML = renderTileSVG(p.doraIndicatorIdx, { width: 26 });
-      if (p.hasRiichi && p.uraDoraIndicatorIdx !== null) {
-        document.getElementById('hud-uradora-tile').innerHTML = renderTileSVG(p.uraDoraIndicatorIdx, { width: 26 });
-      } else {
-        document.getElementById('hud-uradora-tile').innerHTML = renderTileSVG(0, { width: 26, isBack: true });
+      let nextProb = null;
+      if (state.isReviewMode && state.reviewQueue.length > 0) {
+        const pickedRaw = pickRandom(state.reviewQueue);
+        nextProb = hydrateProblemFromStorage(pickedRaw);
+      }
+      if (!nextProb) {
+        state.isReviewMode = false;
+        updateReviewHeaderUI();
+        nextProb = generateRigorousFuProblem();
       }
 
-      document.getElementById('rack-caption-right').textContent = p.isTsumo ? '右端がツモ和了牌' : '右端がロン和了牌';
+      state.currentProb = nextProb;
+      state.answered = false;
+      const p = state.currentProb;
 
-      // 2. Render Hand Rack
-      renderHandRack();
+      // 1-Line Situation Badges
+      const windBadge = document.getElementById('hud-wind-badge');
+      windBadge.textContent = `${TILE_NAMES_JA[p.roundWindIdx]}場 ${TILE_NAMES_JA[p.seatWindIdx]}家(${p.isDealer ? '親' : '子'})`;
+      windBadge.className = p.isDealer
+        ? 'px-1.5 sm:px-2 py-0.5 rounded-md bg-amber-600 text-white font-black text-[11px] sm:text-xs shrink-0'
+        : 'px-1.5 sm:px-2 py-0.5 rounded-md bg-emerald-600 text-white font-black text-[11px] sm:text-xs shrink-0';
 
-      // 3. Configure Direct Score Input Boxes
+      const winBadge = document.getElementById('hud-win-badge');
+      winBadge.textContent = p.isTsumo ? 'ツモ' : 'ロン';
+      winBadge.className = p.isTsumo
+        ? 'px-1.5 sm:px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 font-black text-[11px] sm:text-xs shrink-0'
+        : 'px-1.5 sm:px-2 py-0.5 rounded-md bg-rose-100 text-rose-800 font-black text-[11px] sm:text-xs shrink-0';
+
+      // Show Riichi badge ONLY when Riichi is declared (never show 門前 or 副露)
+      const riichiBadge = document.getElementById('hud-riichi-badge');
+      if (p.hasRiichi) {
+        riichiBadge.classList.remove('hidden');
+      } else {
+        riichiBadge.classList.add('hidden');
+      }
+
+      // Ippatsu Badge
+      const ippatsuBadge = document.getElementById('hud-ippatsu-badge');
+      if (p.hasRiichi && p.hasIppatsu) {
+        ippatsuBadge.classList.remove('hidden');
+      } else {
+        ippatsuBadge.classList.add('hidden');
+      }
+
+      // Dora & Ura-Dora Indicator Tiles
+      document.getElementById('hud-dora-tile').innerHTML = renderTileSVG(p.doraIndicatorIdx);
+      const uraWrap = document.getElementById('hud-uradora-wrap');
+      const uraTileEl = document.getElementById('hud-uradora-tile');
+      if (p.hasRiichi && p.uraDoraIndicatorIdx !== null && p.uraDoraIndicatorIdx !== undefined) {
+        uraTileEl.innerHTML = renderTileSVG(p.uraDoraIndicatorIdx);
+        uraWrap.classList.remove('hidden');
+      } else {
+        uraTileEl.innerHTML = '';
+        uraWrap.classList.add('hidden');
+      }
+
+      // Render Strictly Single-Row Hand (with sideways called tile in open melds)
+      renderSingleRowHand();
+
+      // Configure Score Input
       setupDirectInputForProblem();
 
       document.getElementById('answer-section').classList.remove('hidden');
       document.getElementById('result-section').classList.add('hidden');
     }
 
-    function renderHandRack() {
+    /**
+     * Renders all tiles (closed tiles + open melds with 1 sideways tile + winning tile) into a single flex-nowrap container.
+     * Upright tiles use `.tile-fluid-item` (flex: 100) and sideways called tiles use `.tile-fluid-sideways` (flex: 140),
+     * aligning flush at the bottom without ever wrapping on smartphone screens.
+     */
+    function renderSingleRowHand() {
       const p = state.currentProb;
       const container = document.getElementById('hand-tiles-container');
-      container.innerHTML = '';
 
-      // Remove 1 copy of winTileIdx from closedTilesWithWin for the 13-tile rack
       const closedCopy = [...p.closedTilesWithWin];
       const winPos = closedCopy.indexOf(p.winTileIdx);
       if (winPos !== -1) closedCopy.splice(winPos, 1);
       closedCopy.sort((a, b) => a - b);
 
-      let html = `<div class="flex flex-wrap items-end justify-center gap-0.5 sm:gap-1">`;
+      let html = '';
+
+      // 1. Closed Hand Tiles
       closedCopy.forEach(tIdx => {
-        html += renderTileSVG(tIdx, { width: 38 });
-      });
-      html += `</div>`;
-
-      // Render Open Melds & Ankan
-      p.fixedMelds.forEach(m => {
-        const label = m.kind === 'kantsu' ? (m.isOpen ? '明槓' : '暗槓') : m.kind === 'koutsu' ? 'ポン' : 'チー';
-        html += `
-          <div class="flex flex-col items-center bg-slate-100 border border-slate-300 rounded-xl px-2 py-1 ml-1">
-            <span class="text-[9px] font-bold text-slate-600 mb-0.5">${label}</span>
-            <div class="flex items-end gap-0.5">
-              ${m.tiles.map((tIdx, i) => {
-                const isBack = (m.kind === 'kantsu' && !m.isOpen && (i === 0 || i === 3));
-                return renderTileSVG(tIdx, { width: 33, isBack });
-              }).join('')}
-            </div>
-          </div>
-        `;
+        html += `<div class="tile-fluid-item">${renderTileSVG(tIdx)}</div>`;
       });
 
-      // Winning Tile
+      // 2. Winning Tile (Tsumo / Ron) placed right after closed hand with floating top badge so bottom edge stays 100% flush
+      const winLabel = p.isTsumo ? 'ツモ' : 'ロン';
       html += `
-        <div class="flex flex-col items-center bg-amber-50 border-2 border-amber-400 rounded-xl px-2.5 py-1 ml-1.5 shadow-sm">
-          <span class="text-[10px] font-black text-amber-800 mb-0.5">${p.isTsumo ? 'ツモ' : 'ロン'}</span>
-          ${renderTileSVG(p.winTileIdx, { width: 38, highlight: true })}
+        <div class="tile-fluid-item tile-group-gap">
+          <span class="win-tile-badge">${winLabel}</span>
+          ${renderTileSVG(p.winTileIdx, { highlight: true })}
         </div>
       `;
+
+      // 3. Open Melds (Pon / Chi / Minkan with 1 sideways tile) & Closed Kan (Ankan: 2 back, 2 face-up)
+      p.fixedMelds.forEach(m => {
+        const sidewaysIdx = m.isOpen
+          ? (typeof m.sidewaysIndex === 'number' && m.sidewaysIndex >= 0 ? m.sidewaysIndex : 0)
+          : -1;
+
+        m.tiles.forEach((tIdx, i) => {
+          const gapClass = i === 0 ? 'tile-group-gap' : '';
+          const isBack = (m.kind === 'kantsu' && !m.isOpen && (i === 0 || i === 3));
+          const isSideways = m.isOpen && i === sidewaysIdx;
+
+          if (isSideways) {
+            html += `
+              <div class="tile-fluid-sideways ${gapClass}">
+                ${renderSidewaysTileSVG(tIdx)}
+              </div>
+            `;
+          } else {
+            html += `
+              <div class="tile-fluid-item ${gapClass}">
+                ${renderTileSVG(tIdx, { isBack })}
+              </div>
+            `;
+          }
+        });
+      });
 
       container.innerHTML = html;
     }
@@ -1824,47 +1740,29 @@
       state.valOya = '';
       state.isDualInput = !p.isDealer && p.isTsumo;
 
-      const badge = document.getElementById('input-prompt-badge');
-      const title = document.getElementById('input-prompt-title');
       const singleWrap = document.getElementById('single-input-wrap');
       const dualWrap = document.getElementById('dual-input-wrap');
+      const labelSingleLeft = document.getElementById('label-single-left');
       const unitSingle = document.getElementById('unit-single');
-      const switchKey = document.getElementById('btn-key-switch');
       document.getElementById('input-error-msg').classList.add('hidden');
 
       if (state.isDualInput) {
-        // 子ツモ: 子 [〇〇] 点 / 親 [〇〇] 点
-        badge.textContent = '子のツモ和了';
-        badge.className = 'px-2.5 py-0.5 rounded-md bg-blue-100 text-blue-800 text-xs font-black';
-        title.textContent = '子・親それぞれの支払点数を入力';
         singleWrap.classList.add('hidden');
         dualWrap.classList.remove('hidden');
         state.activeField = 'ko';
-        switchKey.textContent = '子 ⇄ 親';
-        switchKey.dataset.key = 'SW';
-        switchKey.className = 'tenkey-btn h-12 sm:h-13 rounded-xl bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 font-black text-xs text-indigo-800 shadow-sm';
       } else {
         singleWrap.classList.remove('hidden');
         dualWrap.classList.add('hidden');
         state.activeField = 'single';
-        switchKey.textContent = '000';
-        switchKey.dataset.key = '000';
-        switchKey.className = 'tenkey-btn h-12 sm:h-13 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-300 font-mono font-black text-lg text-amber-900 shadow-sm';
 
         if (p.isDealer && p.isTsumo) {
-          badge.textContent = '親のツモ和了';
-          badge.className = 'px-2.5 py-0.5 rounded-md bg-amber-100 text-amber-900 text-xs font-black';
-          title.textContent = '子1人あたりの支払点数（〇〇点オール）を入力';
+          labelSingleLeft.textContent = '親のツモ和了';
           unitSingle.textContent = '点オール';
         } else if (p.isDealer && !p.isTsumo) {
-          badge.textContent = '親のロン和了';
-          badge.className = 'px-2.5 py-0.5 rounded-md bg-amber-100 text-amber-900 text-xs font-black';
-          title.textContent = 'ロンの和了点数を入力';
+          labelSingleLeft.textContent = '親のロン和了';
           unitSingle.textContent = '点';
         } else {
-          badge.textContent = '子のロン和了';
-          badge.className = 'px-2.5 py-0.5 rounded-md bg-emerald-100 text-emerald-800 text-xs font-black';
-          title.textContent = 'ロンの和了点数を入力';
+          labelSingleLeft.textContent = '子のロン和了';
           unitSingle.textContent = '点';
         }
       }
@@ -1883,41 +1781,33 @@
 
       valSingleEl.textContent = state.valSingle || '0';
       valSingleEl.className = state.valSingle
-        ? 'font-mono font-black text-2xl sm:text-3xl text-slate-900 tracking-tight'
-        : 'font-mono font-black text-2xl sm:text-3xl text-slate-300 tracking-tight';
+        ? 'font-mono font-black text-2xl sm:text-3xl text-slate-900'
+        : 'font-mono font-black text-2xl sm:text-3xl text-slate-300';
 
       valKoEl.textContent = state.valKo || '0';
       valKoEl.className = state.valKo
-        ? 'font-mono font-black text-xl sm:text-2xl text-slate-900 tracking-tight truncate'
-        : 'font-mono font-black text-xl sm:text-2xl text-slate-300 tracking-tight truncate';
+        ? 'font-mono font-black text-xl sm:text-2xl text-slate-900'
+        : 'font-mono font-black text-xl sm:text-2xl text-slate-300';
 
       valOyaEl.textContent = state.valOya || '0';
       valOyaEl.className = state.valOya
-        ? 'font-mono font-black text-xl sm:text-2xl text-slate-900 tracking-tight truncate'
-        : 'font-mono font-black text-xl sm:text-2xl text-slate-300 tracking-tight truncate';
+        ? 'font-mono font-black text-xl sm:text-2xl text-slate-900'
+        : 'font-mono font-black text-xl sm:text-2xl text-slate-300';
 
       boxSingle.classList.toggle('score-input-active', state.activeField === 'single');
       boxKo.classList.toggle('score-input-active', state.activeField === 'ko');
       boxOya.classList.toggle('score-input-active', state.activeField === 'oya');
 
       if (state.isDualInput && state.activeField === 'ko' && state.valKo && !state.valOya) {
-        submitLabel.textContent = '親の入力へ ▶';
+        submitLabel.textContent = '親の点数へ ▶';
       } else {
-        submitLabel.textContent = '回答する ▶';
+        submitLabel.textContent = '回答する';
       }
     }
 
     function handleTenkeyInput(key) {
       if (state.answered) return;
       document.getElementById('input-error-msg').classList.add('hidden');
-
-      if (key === 'SW') {
-        if (state.isDualInput) {
-          state.activeField = state.activeField === 'ko' ? 'oya' : 'ko';
-          refreshInputBoxesUI();
-        }
-        return;
-      }
 
       const propName = state.activeField === 'ko'
         ? 'valKo'
@@ -1927,13 +1817,10 @@
 
       let cur = state[propName];
 
-      if (key === 'CLR') {
-        cur = '';
-      } else if (key === 'BS') {
+      if (key === 'BS') {
         cur = cur.slice(0, -1);
       } else {
-        // Prevent leading zeros
-        if (cur === '' && (key === '0' || key === '00' || key === '000')) {
+        if (cur === '' && (key === '0' || key === '00')) {
           return;
         }
         if ((cur + key).length <= 6) {
@@ -1950,7 +1837,6 @@
       const p = state.currentProb;
 
       if (state.isDualInput) {
-        // If user entered Ko score and Oya score is still empty, move focus to Oya smoothly
         if (state.activeField === 'ko' && state.valKo !== '' && state.valOya === '') {
           state.activeField = 'oya';
           refreshInputBoxesUI();
@@ -1967,8 +1853,7 @@
 
         const isCorrect = (numKo === p.scoreInfo.expectedKo) && (numOya === p.scoreInfo.expectedOya);
         updateStatsUI(isCorrect);
-        const userSummary = `子 ${numKo}点 / 親 ${numOya}点`;
-        showResultAndExplanation(isCorrect, userSummary);
+        showResultAndExplanation(isCorrect, `${numKo.toLocaleString()} / ${numOya.toLocaleString()}点`);
       } else {
         if (state.valSingle === '') {
           document.getElementById('input-error-msg').classList.remove('hidden');
@@ -1980,108 +1865,104 @@
 
         const isCorrect = numVal === p.scoreInfo.expectedSingle;
         updateStatsUI(isCorrect);
-        const userSummary = (p.isDealer && p.isTsumo) ? `${numVal}点オール` : `${numVal}点`;
-        showResultAndExplanation(isCorrect, userSummary);
+        const userText = (p.isDealer && p.isTsumo)
+          ? `${numVal.toLocaleString()}点オール`
+          : `${numVal.toLocaleString()}点`;
+        showResultAndExplanation(isCorrect, userText);
       }
     }
 
     /*************************************************************************
-     * 4. VISUAL BLOCK-BY-BLOCK FU EXPLANATION RENDERER
+     * 4. SINGLE-COLUMN, 1-LINE-PER-ITEM EXPLANATION RENDERER
      *************************************************************************/
     function showResultAndExplanation(isCorrect, userSummaryText) {
       const p = state.currentProb;
       document.getElementById('answer-section').classList.add('hidden');
-      const resSec = document.getElementById('result-section');
-      resSec.classList.remove('hidden');
+      document.getElementById('result-section').classList.remove('hidden');
 
       const vBanner = document.getElementById('verdict-banner');
       const vBadge = document.getElementById('verdict-badge');
-      const vTitle = document.getElementById('verdict-title');
-      const vSub = document.getElementById('verdict-subtitle');
+      const vSummary = document.getElementById('verdict-summary');
+      const vUserAns = document.getElementById('verdict-user-ans');
 
-      const fuFormulaParts = p.fuVisualBlocks.filter(b => b.fu > 0).map(b => `${b.fu}`);
-      const eqStr = p.isChiitoitsu
-        ? `七対子固定 25符`
-        : `${fuFormulaParts.join(' + ')} = ${p.rawFu}符 ➔ 切上 ${p.finalFu}符`;
-
-      document.getElementById('explain-fu-equation').textContent = eqStr;
-
-      const limitSuffix = p.scoreInfo.limitName ? `（${p.scoreInfo.limitName}）` : '';
+      const limitTag = p.scoreInfo.limitName ? ` ${p.scoreInfo.limitName}` : '';
+      const correctHeadline = `${p.finalFu}符 ${p.totalHan}飜${limitTag} ${p.scoreInfo.scoreLabel}`;
 
       if (isCorrect) {
-        vBanner.className = 'rounded-2xl p-4 border-2 border-emerald-400 bg-emerald-50/70 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3';
-        vBadge.className = 'px-2.5 py-0.5 rounded-md bg-emerald-600 text-white text-xs font-black';
-        vBadge.textContent = '正解！';
-        vTitle.textContent = `${p.scoreInfo.scoreLabel} — ${p.finalFu}符${p.totalHan}飜${limitSuffix}`;
-        vSub.textContent = `あなたの回答（${userSummaryText}）は正解です！下の役・符の内訳を確認しましょう。`;
+        vBanner.className = 'rounded-2xl p-3.5 border-2 border-emerald-500 bg-emerald-50/70 shadow-sm space-y-2.5';
+        vBadge.className = 'px-2.5 py-0.5 rounded-md bg-emerald-600 text-white text-xs font-black shrink-0';
+        vBadge.textContent = '正解';
+        vSummary.textContent = correctHeadline;
+        vUserAns.textContent = '';
+
+        if (state.isReviewMode && removeProblemFromReviewQueue(p)) {
+          document.getElementById('review-status-msg').textContent = '✓ 復習リストからクリアしました';
+        } else {
+          document.getElementById('review-status-msg').textContent = isProblemInReviewQueue(p)
+            ? '復習リストに登録されています'
+            : '復習リストに未登録';
+        }
       } else {
-        vBanner.className = 'rounded-2xl p-4 border-2 border-rose-400 bg-rose-50/70 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3';
-        vBadge.className = 'px-2.5 py-0.5 rounded-md bg-rose-600 text-white text-xs font-black';
+        vBanner.className = 'rounded-2xl p-3.5 border-2 border-rose-500 bg-rose-50/70 shadow-sm space-y-2.5';
+        vBadge.className = 'px-2.5 py-0.5 rounded-md bg-rose-600 text-white text-xs font-black shrink-0';
         vBadge.textContent = '不正解';
-        vTitle.textContent = `正解：${p.scoreInfo.scoreLabel} — ${p.finalFu}符${p.totalHan}飜${limitSuffix}`;
-        vSub.textContent = `あなたの回答：${userSummaryText}。下の役一覧と符の計算内訳を確認しましょう。`;
+        vSummary.textContent = `正解：${correctHeadline}`;
+        vUserAns.textContent = `回答: ${userSummaryText}`;
+
+        addProblemToReviewQueue(p);
+        document.getElementById('review-status-msg').textContent = '📌 間違えた問題を復習リストに記憶しました';
       }
 
-      // Render Visual Block Cards
-      const grid = document.getElementById('explain-blocks-grid');
-      grid.innerHTML = p.fuVisualBlocks.map(blk => {
-        const hasFu = blk.fu > 0;
-        const tilesHtml = (blk.tiles || []).map((tIdx, i) => {
-          const isBack = (blk.kind === 'kantsu' && !blk.isOpen && (i === 0 || i === 3));
-          return renderTileSVG(tIdx, { width: 26, isBack });
-        }).join('');
+      refreshBookmarkButtonUI();
 
-        return `
-          <div class="rounded-xl p-3 border ${hasFu ? 'bg-emerald-50/40 border-emerald-200' : 'bg-slate-50 border-slate-200'} flex items-center justify-between gap-2">
-            <div class="space-y-1 min-w-0">
-              <div class="flex items-center gap-1.5">
-                <span class="px-1.5 py-0.2 rounded bg-slate-200 text-slate-700 text-[10px] font-bold">${blk.category}</span>
-                <span class="text-xs font-black text-slate-900 truncate">${blk.title}</span>
-              </div>
-              <p class="text-[11px] text-slate-600">${blk.note}</p>
-              ${tilesHtml ? `<div class="flex items-end gap-0.5 pt-1">${tilesHtml}</div>` : ''}
-            </div>
-            <div class="shrink-0 text-right">
-              <span class="inline-block px-2.5 py-1 rounded-lg font-mono font-black text-sm ${
-                hasFu ? 'bg-emerald-600 text-white shadow-sm' : 'bg-slate-200 text-slate-600'
-              }">+${blk.fu}符</span>
-            </div>
-          </div>
-        `;
-      }).join('');
-
-      // Special Note
-      const noteEl = document.getElementById('explain-special-note');
-      if (p.specialRuleNote) {
-        noteEl.classList.remove('hidden');
-        noteEl.textContent = `💡 ルール解説：${p.specialRuleNote}`;
-      } else {
-        noteEl.classList.add('hidden');
-      }
-
-      // Yaku List
-      document.getElementById('explain-han-total').textContent = `合計 ${p.totalHan}飜`;
+      // 1-Line-Per-Item Yaku List
+      document.getElementById('explain-han-total').textContent = `合計 ${p.totalHan}飜${limitTag}`;
       document.getElementById('explain-yaku-list').innerHTML = p.yakuList.map(y => `
-        <div class="flex items-center justify-between bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg">
+        <div class="flex items-center justify-between py-1.5 whitespace-nowrap">
           <span class="font-bold text-slate-800">${y.name}</span>
           <span class="font-mono font-black text-indigo-700">${y.han}飜</span>
         </div>
       `).join('');
 
-      // Score Detail
-      document.getElementById('explain-score-final').textContent = `${p.scoreInfo.scoreLabel}${limitSuffix}`;
-      document.getElementById('explain-score-detail').innerHTML = `
-        <div><strong>場況・和了：</strong>${TILE_NAMES_JA[p.roundWindIdx]}1局 ${TILE_NAMES_JA[p.seatWindIdx]}家(${p.isDealer ? '親' : '子'}) / ${p.isTsumo ? 'ツモ和了' : 'ロン和了'}</div>
-        <div><strong>符・飜数：</strong>${p.finalFu}符（切上前${p.rawFu}符）・${p.totalHan}飜${limitSuffix}</div>
-        <div><strong>点数算出：</strong>${p.scoreInfo.detailFormula}</div>
-      `;
+      // 1-Line-Per-Item Fu List
+      const fuTotalEl = document.getElementById('explain-fu-total');
+      if (p.isChiitoitsu) {
+        fuTotalEl.textContent = '七対子 25符固定';
+      } else if (p.rawFu === p.finalFu) {
+        fuTotalEl.textContent = `合計 ${p.finalFu}符`;
+      } else {
+        fuTotalEl.textContent = `合計 ${p.rawFu}符 → 切上 ${p.finalFu}符`;
+      }
+
+      document.getElementById('explain-fu-list').innerHTML = p.fuLineItems.map(item => `
+        <div class="flex items-center justify-between py-1.5 whitespace-nowrap">
+          <span class="font-bold text-slate-700">${item.label}</span>
+          <span class="font-mono font-black text-emerald-700">${item.fuText}</span>
+        </div>
+      `).join('');
     }
 
     /*************************************************************************
-     * 5. INITIALIZATION & EVENT LISTENERS
+     * 5. EVENT LISTENERS
      *************************************************************************/
+    function refreshBookmarkButtonUI() {
+      const p = state.currentProb;
+      const btn = document.getElementById('btn-toggle-bookmark');
+      if (!p || !btn) return;
+      const inQueue = isProblemInReviewQueue(p);
+      if (inQueue) {
+        btn.textContent = '復習リストから削除';
+        btn.className = 'px-2.5 py-1 rounded-lg bg-rose-100 hover:bg-rose-200 text-rose-800 border border-rose-300 text-[11px] font-black shrink-0 transition';
+      } else {
+        btn.textContent = '復習リストに残す';
+        btn.className = 'px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 text-[11px] font-black shrink-0 transition';
+      }
+    }
+
     window.addEventListener('DOMContentLoaded', () => {
-      // Input Box Focus Switching
+      loadReviewQueueFromStorage();
+      updateReviewHeaderUI();
+
       document.getElementById('box-single').addEventListener('click', () => {
         state.activeField = 'single';
         refreshInputBoxesUI();
@@ -2095,15 +1976,33 @@
         refreshInputBoxesUI();
       });
 
-      // Custom Tenkey Buttons
       document.querySelectorAll('.tenkey-btn[data-key]').forEach(btn => {
         btn.addEventListener('click', () => handleTenkeyInput(btn.dataset.key));
       });
 
-      // Submit Score Button
       document.getElementById('btn-submit-score').addEventListener('click', submitScoreAnswer);
+      document.getElementById('btn-generate-next').addEventListener('click', generateAndLoadProblem);
+      document.getElementById('btn-next-after-result').addEventListener('click', generateAndLoadProblem);
 
-      // Physical Keyboard Support for Desktop Convenience
+      document.getElementById('btn-toggle-review').addEventListener('click', () => {
+        if (!state.isReviewMode && state.reviewQueue.length === 0) return;
+        state.isReviewMode = !state.isReviewMode;
+        generateAndLoadProblem();
+      });
+
+      document.getElementById('btn-toggle-bookmark').addEventListener('click', () => {
+        const p = state.currentProb;
+        if (!p) return;
+        if (isProblemInReviewQueue(p)) {
+          removeProblemFromReviewQueue(p);
+          document.getElementById('review-status-msg').textContent = '復習リストから削除しました';
+        } else {
+          addProblemToReviewQueue(p);
+          document.getElementById('review-status-msg').textContent = '📌 復習リストに保存しました';
+        }
+        refreshBookmarkButtonUI();
+      });
+
       window.addEventListener('keydown', (e) => {
         if (state.answered) {
           if (e.key === 'Enter') {
@@ -2118,87 +2017,16 @@
         } else if (e.key === 'Backspace') {
           e.preventDefault();
           handleTenkeyInput('BS');
-        } else if (e.key === 'Escape' || e.key === 'Delete') {
-          e.preventDefault();
-          handleTenkeyInput('CLR');
         } else if (e.key === 'Tab' && state.isDualInput) {
           e.preventDefault();
-          handleTenkeyInput('SW');
+          state.activeField = state.activeField === 'ko' ? 'oya' : 'ko';
+          refreshInputBoxesUI();
         } else if (e.key === 'Enter') {
           e.preventDefault();
           submitScoreAnswer();
         }
       });
 
-      // Generate New Problem Buttons
-      document.getElementById('btn-generate-next').addEventListener('click', generateAndLoadProblem);
-      document.getElementById('btn-next-after-result').addEventListener('click', generateAndLoadProblem);
-
-      // Corner Guide Toggle
-      document.getElementById('btn-toggle-guide').addEventListener('click', () => {
-        showCornerGuide = !showCornerGuide;
-        const lbl = document.getElementById('label-guide-state');
-        lbl.textContent = showCornerGuide ? '記号:ON' : '記号:OFF';
-        renderHandRack();
-        if (state.currentProb) {
-          document.getElementById('hud-dora-tile').innerHTML = renderTileSVG(state.currentProb.doraIndicatorIdx, { width: 26 });
-          if (state.currentProb.hasRiichi && state.currentProb.uraDoraIndicatorIdx !== null) {
-            document.getElementById('hud-uradora-tile').innerHTML = renderTileSVG(state.currentProb.uraDoraIndicatorIdx, { width: 26 });
-          }
-        }
-      });
-
-      // Cheat Sheet Modal
-      document.getElementById('btn-open-cheatsheet').addEventListener('click', () => {
-        document.getElementById('modal-cheatsheet').classList.remove('hidden');
-      });
-      document.getElementById('btn-close-cheatsheet').addEventListener('click', () => {
-        document.getElementById('modal-cheatsheet').classList.add('hidden');
-      });
-      document.getElementById('modal-cheatsheet').addEventListener('click', (e) => {
-        if (e.target.id === 'modal-cheatsheet') document.getElementById('modal-cheatsheet').classList.add('hidden');
-      });
-
-      // 34-Tile Gallery Modal
-      const populateGallery = () => {
-        const groups = [
-          { title: '筒子（1p〜9p）※2p・4p・8p濃紺統一、5p中央赤、6p上紺下赤、7p上緑下赤、9p三色', start: 9, end: 17 },
-          { title: '索子（1s〜9s）※8s M/W字形、2s・3s・4s・6s・8s緑統一、5s・7s・9s赤入り', start: 18, end: 26 },
-          { title: '萬子（1m〜9m）※高視認性・明朝楷書体', start: 0, end: 8 },
-          { title: '字牌（東南西北白發中）', start: 27, end: 33 }
-        ];
-        document.getElementById('gallery-content').innerHTML = groups.map(g => {
-          let items = '';
-          for (let i = g.start; i <= g.end; i++) {
-            items += `
-              <div class="flex flex-col items-center p-2 rounded-xl bg-slate-50 border border-slate-200">
-                ${renderTileSVG(i, { width: 44 })}
-                <span class="mt-1 text-xs font-black text-slate-800">${TILE_NAMES_JA[i]}</span>
-                <span class="text-[10px] font-mono text-slate-500">${TILE_CODES[i]}</span>
-              </div>
-            `;
-          }
-          return `
-            <div class="space-y-2">
-              <h3 class="text-xs font-black text-emerald-800 border-l-4 border-emerald-600 pl-2">${g.title}</h3>
-              <div class="grid grid-cols-5 sm:grid-cols-9 gap-2">${items}</div>
-            </div>
-          `;
-        }).join('');
-      };
-
-      document.getElementById('btn-open-gallery').addEventListener('click', () => {
-        populateGallery();
-        document.getElementById('modal-gallery').classList.remove('hidden');
-      });
-      document.getElementById('btn-close-gallery').addEventListener('click', () => {
-        document.getElementById('modal-gallery').classList.add('hidden');
-      });
-      document.getElementById('modal-gallery').addEventListener('click', (e) => {
-        if (e.target.id === 'modal-gallery') document.getElementById('modal-gallery').classList.add('hidden');
-      });
-
-      // Generate initial problem on load
       generateAndLoadProblem();
     });
   </script>

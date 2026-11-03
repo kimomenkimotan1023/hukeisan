@@ -242,7 +242,7 @@
 
         <button type="button" data-key="0" class="tenkey-btn h-11 sm:h-12 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-300 font-mono font-black text-xl text-slate-900">0</button>
         <button type="button" data-key="00" class="tenkey-btn h-11 sm:h-12 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-300 font-mono font-black text-xl text-amber-900">00</button>
-        <button type="button" data-key="BS" class="tenkey-btn h-11 sm:h-12 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 font-black text-base text-rose-700">⌫</button>
+        <button type="button" data-key="CLR" class="tenkey-btn h-11 sm:h-12 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200 font-black text-sm sm:text-base text-rose-700">クリア</button>
       </div>
 
       <!-- Full-Width Single-Line Submit / Next Field Button -->
@@ -1853,8 +1853,8 @@
 
       let cur = state[propName];
 
-      if (key === 'BS') {
-        cur = cur.slice(0, -1);
+      if (key === 'CLR' || key === 'BS') {
+        cur = '';
       } else {
         if (cur === '' && (key === '0' || key === '00')) {
           return;
@@ -2055,9 +2055,9 @@
         if (e.key >= '0' && e.key <= '9') {
           e.preventDefault();
           handleTenkeyInput(e.key);
-        } else if (e.key === 'Backspace') {
+        } else if (e.key === 'Backspace' || e.key === 'Delete' || e.key === 'Escape') {
           e.preventDefault();
-          handleTenkeyInput('BS');
+          handleTenkeyInput('CLR');
         } else if (e.key === 'Tab' && state.isDualInput) {
           e.preventDefault();
           state.activeField = state.activeField === 'ko' ? 'oya' : 'ko';

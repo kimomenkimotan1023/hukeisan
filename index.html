@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>麻雀 点数計算トレーナー</title>
+  <title>麻雀点数計算トレーナー</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -66,13 +66,17 @@
     }
     .win-tile-badge {
       position: absolute;
-      top: -14px;
+      top: -16px;
       left: 50%;
       transform: translateX(-50%);
       font-size: 9px;
       font-weight: 900;
+      padding: 1px 4px;
+      border-radius: 4px;
+      background-color: #fef3c7;
+      border: 1px solid #f59e0b;
       color: #b45309;
-      line-height: 1;
+      line-height: 1.1;
       white-space: nowrap;
       pointer-events: none;
     }
@@ -112,7 +116,7 @@
     <div class="max-w-xl mx-auto flex items-center justify-between gap-2 whitespace-nowrap">
       <div class="flex items-center gap-1.5 min-w-0">
         <span class="w-6 h-6 rounded-md bg-emerald-600 text-white font-serif font-black text-xs flex items-center justify-center shrink-0">点</span>
-        <h1 class="text-sm sm:text-base font-black text-slate-900 truncate">麻雀 点数計算</h1>
+        <h1 class="app-title text-sm sm:text-base font-black text-slate-900 truncate">麻雀点数計算トレーナー</h1>
         <span id="mode-indicator-pill" class="hidden px-1.5 py-0.5 rounded bg-rose-600 text-white font-black text-[10px] shrink-0">復習中</span>
       </div>
 
@@ -139,16 +143,6 @@
   </div>
 
   <!-- Main Single-Column Container -->
-  <main class="flex-1 max-w-xl w-full mx-auto px-2.5 sm:px-4 pt-2.5 pb-6 space-y-2.5">
-      <span>解答数: <strong id="stat-total" class="text-slate-900 font-black">0問</strong></span>
-      <span class="text-slate-300">|</span>
-      <span>正解数: <strong id="stat-accuracy" class="text-emerald-700 font-black">0問 (0%)</strong></span>
-      <span class="text-slate-300">|</span>
-      <span>連続正解: <strong id="stat-streak" class="text-amber-600 font-black">0問</strong></span>
-    </div>
-  </div>
-
-  <!-- Main Single-Column Container -->
   <main class="flex-1 max-w-xl w-full mx-auto px-2 sm:px-4 pt-2 pb-6 space-y-2.5">
 
     <!-- ===============================================================
@@ -158,13 +152,10 @@
 
       <!-- 1-Row Situation & Dora / Ura-Dora Indicator Bar (Never wraps) -->
       <div class="flex items-center justify-between gap-1 bg-slate-50 border border-slate-200 rounded-xl px-2 py-1.5 whitespace-nowrap overflow-hidden">
-        <!-- Left: Wind / Win Type / Riichi / Ippatsu badges in 1 line -->
+        <!-- Left: Wind / Riichi / Ippatsu badges in 1 line (No Tsumo/Ron or Menzen/Furo here) -->
         <div class="flex items-center gap-1 min-w-0">
           <span id="hud-wind-badge" class="px-1.5 sm:px-2 py-0.5 rounded-md bg-emerald-600 text-white font-black text-[11px] sm:text-xs shrink-0">
             東場 東家(親)
-          </span>
-          <span id="hud-win-badge" class="px-1.5 sm:px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 font-black text-[11px] sm:text-xs shrink-0">
-            ツモ
           </span>
           <span id="hud-riichi-badge" class="hidden px-1.5 sm:px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 font-black text-[11px] sm:text-xs shrink-0">
             リーチ
@@ -177,11 +168,11 @@
         <!-- Right: Dora & Ura-Dora Indicator Tiles -->
         <div class="flex items-center gap-1.5 shrink-0">
           <div class="flex items-center gap-1">
-            <span class="text-[10px] sm:text-[11px] font-bold text-slate-500">ドラ</span>
+            <span class="text-[10px] sm:text-[11px] font-bold text-slate-500">ドラ表示牌</span>
             <div id="hud-dora-tile" class="w-5 sm:w-6 flex items-center"></div>
           </div>
           <div id="hud-uradora-wrap" class="hidden flex items-center gap-1 pl-1 border-l border-slate-200">
-            <span class="text-[10px] sm:text-[11px] font-bold text-amber-700">裏</span>
+            <span class="text-[10px] sm:text-[11px] font-bold text-amber-700">裏ドラ表示牌</span>
             <div id="hud-uradora-tile" class="w-5 sm:w-6 flex items-center"></div>
           </div>
         </div>
@@ -534,13 +525,22 @@
      * guaranteeing exact bottom alignment and zero bounding-box distortion on all mobile screens.
      */
     function renderSidewaysTileSVG(tileIdx) {
-      const innerSvg = renderTileSVG(tileIdx)
+      // Extract only the inner face artwork (excluding the upright 3D outer rect layers)
+      const fullSvg = renderTileSVG(tileIdx);
+      const innerArtwork = fullSvg
         .replace(/<svg[^>]*>/, '')
-        .replace(/<\/svg>/, '');
+        .replace(/<\/svg>/, '')
+        .replace(/<rect x="2" y="6"[^>]*\/>/, '')
+        .replace(/<rect x="2" y="3\.5"[^>]*\/>/, '')
+        .replace(/<rect x="2" y="2"[^>]*\/>/, '');
+
       return `
         <svg viewBox="0 0 138 100" class="w-full h-full select-none">
-          <g transform="translate(0, 100) rotate(-90)">
-            ${innerSvg}
+          <rect x="2" y="6" width="134" height="92" rx="11" fill="#cbd5e1" />
+          <rect x="2" y="3.5" width="134" height="92" rx="11" fill="#f59e0b" />
+          <rect x="2" y="2" width="134" height="90" rx="11" fill="#ffffff" stroke="#64748b" stroke-width="3" />
+          <g transform="translate(19, 97) rotate(-90)">
+            ${innerArtwork}
           </g>
         </svg>
       `;
@@ -990,16 +990,25 @@
         !b.isOpen &&
         !(b.isWinBlock && !isTsumo)
       ).length;
+      if (ankouCount === 4) {
+        return null; // Reject accidental Suuankou (Yakuman)
+      }
       if (ankouCount === 3) {
         yakuList.push({ name: '三暗刻', han: 2 });
       }
 
       const kanCount = blocks.filter(b => b.kind === 'kantsu').length;
+      if (kanCount === 4) {
+        return null; // Reject accidental Suukantsu (Yakuman)
+      }
       if (kanCount === 3) {
         yakuList.push({ name: '三槓子', han: 2 });
       }
 
       const dragonKoutsuCount = blocks.filter(b => (b.kind === 'koutsu' || b.kind === 'kantsu') && b.tiles[0] >= 31).length;
+      if (dragonKoutsuCount === 3) {
+        return null; // Reject accidental Daisangen (Yakuman)
+      }
       if (dragonKoutsuCount === 2 && jIdx >= 31) {
         yakuList.push({ name: '小三元', han: 2 });
       }
@@ -1039,8 +1048,13 @@
       const hasShuntsu = blocks.some(b => b.kind === 'shuntsu');
       const allBlocksHaveYaochu = blocks.every(b => b.tiles.some(t => isYaochu(t))) && isYaochu(jIdx);
       const hasHonorTile = allTilesInHand.some(t => t >= 27);
+      const allHonors = allTilesInHand.every(t => t >= 27);
+      if (allHonors) {
+        return null; // Reject accidental Tsuuiisou (Yakuman)
+      }
       if (allBlocksHaveYaochu) {
         if (!hasShuntsu) {
+          if (!hasHonorTile) return null; // Reject accidental Chinroutou (Yakuman)
           yakuList.push({ name: '混老頭', han: 2 });
         } else if (!hasHonorTile) {
           yakuList.push({ name: '純全帯幺九', han: isMenzen ? 3 : 2 });
@@ -1376,12 +1390,33 @@
         take(uraDoraIndicatorIdx, 1);
       }
 
-      // Assign random sideways tile index for each open meld (Pon / Chi / Minkan)
+      // Strictly derive isMenzen from whether any open meld exists
+      isMenzen = fixedMelds.every(m => !m.isOpen);
+      if (!isMenzen) {
+        hasRiichi = false;
+      }
+
+      // Assign authentic sideways tile index & tile order for each open meld
       fixedMelds.forEach(m => {
-        if (m.isOpen) {
-          m.sidewaysIndex = Math.floor(Math.random() * m.tiles.length);
-        } else {
+        if (!m.isOpen) {
           m.sidewaysIndex = -1;
+          return;
+        }
+        if (m.kind === 'shuntsu') {
+          // Chi is always called from Kamicha (left player): called tile goes to index 0 and is sideways
+          const calledPos = Math.floor(Math.random() * 3);
+          const calledTile = m.tiles[calledPos];
+          const rest = m.tiles.filter((_, idx) => idx !== calledPos);
+          m.displayTiles = [calledTile, ...rest];
+          m.sidewaysIndex = 0;
+        } else if (m.kind === 'kantsu') {
+          // Daiminkan: sideways at 0 (Kamicha), 1 (Toimen), or 3 (Shimocha)
+          m.displayTiles = [...m.tiles];
+          m.sidewaysIndex = pickRandom([0, 1, 3]);
+        } else {
+          // Pon: sideways at 0 (Kamicha), 1 (Toimen), or 2 (Shimocha)
+          m.displayTiles = [...m.tiles];
+          m.sidewaysIndex = Math.floor(Math.random() * 3);
         }
       });
 
@@ -1471,6 +1506,7 @@
         fixedMelds: p.fixedMelds.map(m => ({
           kind: m.kind,
           tiles: [...m.tiles],
+          displayTiles: m.displayTiles ? [...m.displayTiles] : [...m.tiles],
           isOpen: m.isOpen,
           sidewaysIndex: typeof m.sidewaysIndex === 'number' ? m.sidewaysIndex : (m.isOpen ? 0 : -1)
         })),
@@ -1483,6 +1519,7 @@
       const fixedMelds = (raw.fixedMelds || []).map(m => ({
         kind: m.kind,
         tiles: [...m.tiles],
+        displayTiles: m.displayTiles ? [...m.displayTiles] : [...m.tiles],
         isOpen: Boolean(m.isOpen),
         sidewaysIndex: typeof m.sidewaysIndex === 'number' ? m.sidewaysIndex : (m.isOpen ? 0 : -1)
       }));
@@ -1622,18 +1659,12 @@
       state.answered = false;
       const p = state.currentProb;
 
-      // 1-Line Situation Badges
+      // 1-Line Situation Badges (Wind, Riichi, Ippatsu only)
       const windBadge = document.getElementById('hud-wind-badge');
       windBadge.textContent = `${TILE_NAMES_JA[p.roundWindIdx]}場 ${TILE_NAMES_JA[p.seatWindIdx]}家(${p.isDealer ? '親' : '子'})`;
       windBadge.className = p.isDealer
         ? 'px-1.5 sm:px-2 py-0.5 rounded-md bg-amber-600 text-white font-black text-[11px] sm:text-xs shrink-0'
         : 'px-1.5 sm:px-2 py-0.5 rounded-md bg-emerald-600 text-white font-black text-[11px] sm:text-xs shrink-0';
-
-      const winBadge = document.getElementById('hud-win-badge');
-      winBadge.textContent = p.isTsumo ? 'ツモ' : 'ロン';
-      winBadge.className = p.isTsumo
-        ? 'px-1.5 sm:px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 font-black text-[11px] sm:text-xs shrink-0'
-        : 'px-1.5 sm:px-2 py-0.5 rounded-md bg-rose-100 text-rose-800 font-black text-[11px] sm:text-xs shrink-0';
 
       // Show Riichi badge ONLY when Riichi is declared (never show 門前 or 副露)
       const riichiBadge = document.getElementById('hud-riichi-badge');
@@ -1708,8 +1739,11 @@
         const sidewaysIdx = m.isOpen
           ? (typeof m.sidewaysIndex === 'number' && m.sidewaysIndex >= 0 ? m.sidewaysIndex : 0)
           : -1;
+        const tilesToRender = (m.isOpen && Array.isArray(m.displayTiles) && m.displayTiles.length === m.tiles.length)
+          ? m.displayTiles
+          : m.tiles;
 
-        m.tiles.forEach((tIdx, i) => {
+        tilesToRender.forEach((tIdx, i) => {
           const gapClass = i === 0 ? 'tile-group-gap' : '';
           const isBack = (m.kind === 'kantsu' && !m.isOpen && (i === 0 || i === 3));
           const isSideways = m.isOpen && i === sidewaysIdx;
@@ -1800,6 +1834,8 @@
 
       if (state.isDualInput && state.activeField === 'ko' && state.valKo && !state.valOya) {
         submitLabel.textContent = '親の点数へ ▶';
+      } else if (state.isDualInput && state.activeField === 'oya' && state.valOya && !state.valKo) {
+        submitLabel.textContent = '子の点数へ ▶';
       } else {
         submitLabel.textContent = '回答する';
       }
@@ -1839,6 +1875,11 @@
       if (state.isDualInput) {
         if (state.activeField === 'ko' && state.valKo !== '' && state.valOya === '') {
           state.activeField = 'oya';
+          refreshInputBoxesUI();
+          return;
+        }
+        if (state.activeField === 'oya' && state.valOya !== '' && state.valKo === '') {
+          state.activeField = 'ko';
           refreshInputBoxesUI();
           return;
         }

@@ -249,6 +249,11 @@
       <button id="btn-submit-score" type="button" class="tenkey-btn w-full h-12 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-base shadow-sm flex items-center justify-center">
         <span id="submit-btn-label">回答する</span>
       </button>
+
+      <!-- Single-Line Rule Note -->
+      <p class="text-center text-[11px] font-bold text-slate-500 whitespace-nowrap pt-0.5">
+        ※3飜60符・4飜30符は切り上げ満貫 ／ 連風牌の雀頭は2符
+      </p>
     </section>
 
     <!-- ===============================================================
@@ -566,7 +571,7 @@
     function computeMahjongPoints(fu, han, isDealer, isTsumo) {
       let basePoints = fu * Math.pow(2, han + 2);
       let limitName = '';
-      const isKiriageMangan = (han === 3 && fu === 40) || (han === 4 && fu === 30);
+      const isKiriageMangan = (han === 3 && fu === 60) || (han === 4 && fu === 30);
 
       if (han >= 13) { basePoints = 8000; limitName = '役満'; }
       else if (han >= 11) { basePoints = 6000; limitName = '三倍満'; }

@@ -132,13 +132,18 @@
   </header>
 
   <!-- 1-Line Centered Stats Bar -->
-  <div class="bg-slate-100 border-b border-slate-200 px-3 py-1.5">
-    <div class="max-w-xl mx-auto flex items-center justify-center gap-3 sm:gap-5 text-[11px] sm:text-xs font-bold text-slate-700 whitespace-nowrap">
-      <span>解答数: <strong id="stat-total" class="text-slate-900 font-black">0問</strong></span>
-      <span class="text-slate-300">｜</span>
-      <span>正解数: <strong id="stat-accuracy" class="text-emerald-700 font-black">0問 (0%)</strong></span>
-      <span class="text-slate-300">｜</span>
-      <span>連続正解: <strong id="stat-streak" class="text-amber-600 font-black">0問</strong></span>
+  <div class="bg-slate-100 border-b border-slate-200 px-2 sm:px-3 py-1.5">
+    <div class="max-w-xl mx-auto flex items-center justify-between gap-1.5 text-[11px] sm:text-xs font-bold text-slate-700 whitespace-nowrap">
+      <div class="flex items-center gap-2 sm:gap-4 min-w-0 overflow-hidden">
+        <span>解答数: <strong id="stat-total" class="text-slate-900 font-black">0問</strong></span>
+        <span class="text-slate-300">｜</span>
+        <span>正解数: <strong id="stat-accuracy" class="text-emerald-700 font-black">0問 (0%)</strong></span>
+        <span class="text-slate-300">｜</span>
+        <span>連続正解: <strong id="stat-streak" class="text-amber-600 font-black">0問</strong></span>
+      </div>
+      <button id="btn-reset-stats" type="button" class="px-2 py-0.5 rounded bg-white hover:bg-slate-200 active:scale-95 text-slate-600 border border-slate-300 text-[10px] sm:text-[11px] font-bold shrink-0 transition">
+        リセット
+      </button>
     </div>
   </div>
 
@@ -1459,6 +1464,7 @@
      * 3. REVIEW STORAGE (localStorage) & UI STATE CONTROLLERS
      *************************************************************************/
     const STORAGE_KEY_REVIEW = 'mahjong_fu_trainer_review_v1';
+    const STORAGE_KEY_STATS  = 'mahjong_fu_trainer_stats_v1';
 
     const state = {
       currentProb: null,
@@ -1472,8 +1478,43 @@
       valOya: '',
       streak: 0,
       correctCount: 0,
-      totalCount: 0
+      totalCount: 0,
+      resetConfirmPending: false,
+      resetConfirmTimer: null
     };
+
+    function writePersistentData(key, obj) {
+      const json = JSON.stringify(obj);
+      try {
+        localStorage.setItem(key, json);
+      } catch (e) {
+        // Fallback to cookie if localStorage is restricted
+      }
+      try {
+        document.cookie = `${encodeURIComponent(key)}=${encodeURIComponent(json)}; path=/; max-age=31536000; SameSite=Lax`;
+      } catch (e) {
+        // Ignore cookie errors
+      }
+    }
+
+    function readPersistentData(key) {
+      try {
+        const raw = localStorage.getItem(key);
+        if (raw) return JSON.parse(raw);
+      } catch (e) {
+        // Fallback to cookie
+      }
+      try {
+        const prefix = `${encodeURIComponent(key)}=`;
+        const found = document.cookie.split('; ').find(row => row.startsWith(prefix));
+        if (found) {
+          return JSON.parse(decodeURIComponent(found.slice(prefix.length)));
+        }
+      } catch (e) {
+        // Ignore parse errors
+      }
+      return null;
+    }
 
     function createProblemId(p) {
       const closedSorted = [...p.closedTilesWithWin].sort((a, b) => a - b).join(',');
@@ -1558,28 +1599,42 @@
     }
 
     function loadReviewQueueFromStorage() {
-      try {
-        const raw = localStorage.getItem(STORAGE_KEY_REVIEW);
-        if (!raw) {
-          state.reviewQueue = [];
-          return;
-        }
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) {
-          state.reviewQueue = parsed.filter(item => item && Array.isArray(item.closedTilesWithWin));
-        }
-      } catch (e) {
+      const parsed = readPersistentData(STORAGE_KEY_REVIEW);
+      if (Array.isArray(parsed)) {
+        state.reviewQueue = parsed.filter(item => item && Array.isArray(item.closedTilesWithWin));
+      } else {
         state.reviewQueue = [];
       }
     }
 
     function saveReviewQueueToStorage() {
-      try {
-        localStorage.setItem(STORAGE_KEY_REVIEW, JSON.stringify(state.reviewQueue));
-      } catch (e) {
-        // Ignore storage quota errors
-      }
+      writePersistentData(STORAGE_KEY_REVIEW, state.reviewQueue);
       updateReviewHeaderUI();
+    }
+
+    function loadStatsFromStorage() {
+      const saved = readPersistentData(STORAGE_KEY_STATS);
+      if (saved && typeof saved === 'object') {
+        state.totalCount = Number.isFinite(saved.totalCount) ? saved.totalCount : 0;
+        state.correctCount = Number.isFinite(saved.correctCount) ? saved.correctCount : 0;
+        state.streak = Number.isFinite(saved.streak) ? saved.streak : 0;
+      }
+      renderStatsUI();
+    }
+
+    function saveStatsToStorage() {
+      writePersistentData(STORAGE_KEY_STATS, {
+        totalCount: state.totalCount,
+        correctCount: state.correctCount,
+        streak: state.streak
+      });
+    }
+
+    function renderStatsUI() {
+      const rate = state.totalCount > 0 ? Math.round((state.correctCount / state.totalCount) * 100) : 0;
+      document.getElementById('stat-total').textContent = `${state.totalCount}問`;
+      document.getElementById('stat-accuracy').textContent = `${state.correctCount}問 (${rate}%)`;
+      document.getElementById('stat-streak').textContent = `${state.streak}問`;
     }
 
     function isProblemInReviewQueue(p) {
@@ -1637,10 +1692,35 @@
       } else {
         state.streak = 0;
       }
-      const rate = state.totalCount > 0 ? Math.round((state.correctCount / state.totalCount) * 100) : 0;
-      document.getElementById('stat-total').textContent = `${state.totalCount}問`;
-      document.getElementById('stat-accuracy').textContent = `${state.correctCount}問 (${rate}%)`;
-      document.getElementById('stat-streak').textContent = `${state.streak}問`;
+      saveStatsToStorage();
+      renderStatsUI();
+    }
+
+    function handleResetStatsClick() {
+      const btn = document.getElementById('btn-reset-stats');
+      if (!state.resetConfirmPending) {
+        state.resetConfirmPending = true;
+        btn.textContent = '本当に消す？';
+        btn.className = 'px-2 py-0.5 rounded bg-rose-600 text-white border border-rose-700 text-[10px] sm:text-[11px] font-black shrink-0 transition';
+        if (state.resetConfirmTimer) clearTimeout(state.resetConfirmTimer);
+        state.resetConfirmTimer = setTimeout(() => {
+          state.resetConfirmPending = false;
+          btn.textContent = 'リセット';
+          btn.className = 'px-2 py-0.5 rounded bg-white hover:bg-slate-200 active:scale-95 text-slate-600 border border-slate-300 text-[10px] sm:text-[11px] font-bold shrink-0 transition';
+        }, 3000);
+        return;
+      }
+
+      if (state.resetConfirmTimer) clearTimeout(state.resetConfirmTimer);
+      state.resetConfirmPending = false;
+      state.totalCount = 0;
+      state.correctCount = 0;
+      state.streak = 0;
+      saveStatsToStorage();
+      renderStatsUI();
+
+      btn.textContent = 'リセット';
+      btn.className = 'px-2 py-0.5 rounded bg-white hover:bg-slate-200 active:scale-95 text-slate-600 border border-slate-300 text-[10px] sm:text-[11px] font-bold shrink-0 transition';
     }
 
     function generateAndLoadProblem() {
@@ -2004,7 +2084,10 @@
 
     window.addEventListener('DOMContentLoaded', () => {
       loadReviewQueueFromStorage();
+      loadStatsFromStorage();
       updateReviewHeaderUI();
+
+      document.getElementById('btn-reset-stats').addEventListener('click', handleResetStatsClick);
 
       document.getElementById('box-single').addEventListener('click', () => {
         state.activeField = 'single';

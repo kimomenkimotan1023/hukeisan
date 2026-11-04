@@ -47,13 +47,13 @@
       align-items: flex-end;
       justify-content: center;
     }
-    /* Each sideways called tile (138x100) scales proportionally (1.38x width of upright) */
+    /* Each sideways called tile (132x106) matches upright tile scale 1:1 (96x128 face rotated to 128x96) */
     .tile-fluid-sideways {
       position: relative;
-      flex: 138 1 0%;
-      aspect-ratio: 138 / 100;
+      flex: 132 1 0%;
+      aspect-ratio: 132 / 106;
       min-width: 0;
-      max-width: 55.2px;
+      max-width: 52.8px;
       display: flex;
       align-items: flex-end;
       justify-content: center;
@@ -150,31 +150,28 @@
          =============================================================== -->
     <section class="bg-white border border-slate-200 rounded-2xl p-2 sm:p-3.5 shadow-sm space-y-2">
 
-      <!-- 1-Row Situation & Dora / Ura-Dora Indicator Bar (Never wraps) -->
-      <div class="flex items-center justify-between gap-1 bg-slate-50 border border-slate-200 rounded-xl px-2 py-1.5 whitespace-nowrap overflow-hidden">
-        <!-- Left: Wind / Riichi / Ippatsu badges in 1 line (No Tsumo/Ron or Menzen/Furo here) -->
-        <div class="flex items-center gap-1 min-w-0">
-          <span id="hud-wind-badge" class="px-1.5 sm:px-2 py-0.5 rounded-md bg-emerald-600 text-white font-black text-[11px] sm:text-xs shrink-0">
-            東場 東家(親)
-          </span>
-          <span id="hud-riichi-badge" class="hidden px-1.5 sm:px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 font-black text-[11px] sm:text-xs shrink-0">
-            リーチ
-          </span>
-          <span id="hud-ippatsu-badge" class="hidden px-1.5 sm:px-2 py-0.5 rounded-md bg-purple-600 text-white font-black text-[11px] sm:text-xs shrink-0">
-            一発
-          </span>
-        </div>
+      <!-- Row 1: Situation Bar (Wind / Riichi / Ippatsu) -->
+      <div class="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 whitespace-nowrap overflow-hidden">
+        <span id="hud-wind-badge" class="px-2 py-0.5 rounded-md bg-emerald-600 text-white font-black text-xs shrink-0">
+          東場 東家(親)
+        </span>
+        <span id="hud-riichi-badge" class="hidden px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 border border-amber-300 font-black text-xs shrink-0">
+          リーチ
+        </span>
+        <span id="hud-ippatsu-badge" class="hidden px-2 py-0.5 rounded-md bg-purple-600 text-white font-black text-xs shrink-0">
+          一発
+        </span>
+      </div>
 
-        <!-- Right: Dora & Ura-Dora Indicator Tiles -->
+      <!-- Row 2: Dora & Ura-Dora Indicator Bar (Placed 1 row below) -->
+      <div class="flex items-center gap-4 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1.5 whitespace-nowrap overflow-hidden">
         <div class="flex items-center gap-1.5 shrink-0">
-          <div class="flex items-center gap-1">
-            <span class="text-[10px] sm:text-[11px] font-bold text-slate-500">ドラ表示牌</span>
-            <div id="hud-dora-tile" class="w-5 sm:w-6 flex items-center"></div>
-          </div>
-          <div id="hud-uradora-wrap" class="hidden flex items-center gap-1 pl-1 border-l border-slate-200">
-            <span class="text-[10px] sm:text-[11px] font-bold text-amber-700">裏ドラ表示牌</span>
-            <div id="hud-uradora-tile" class="w-5 sm:w-6 flex items-center"></div>
-          </div>
+          <span class="text-xs font-bold text-slate-600">ドラ表示牌</span>
+          <div id="hud-dora-tile" class="w-6 sm:w-7 flex items-center"></div>
+        </div>
+        <div id="hud-uradora-wrap" class="hidden flex items-center gap-1.5 pl-3 border-l border-slate-200 shrink-0">
+          <span class="text-xs font-bold text-amber-700">裏ドラ表示牌</span>
+          <div id="hud-uradora-tile" class="w-6 sm:w-7 flex items-center"></div>
         </div>
       </div>
 
@@ -525,9 +522,9 @@
     }
 
     /**
-     * Renders a dedicated sideways tile SVG (viewBox="0 0 138 100") for open melds (Pon / Chi / Minkan).
-     * Draws the sideways 3D tile body directly and rotates only the 100x138 inner artwork via `<g transform="translate(0, 100) rotate(-90)">`,
-     * guaranteeing exact bottom alignment and zero bounding-box distortion on all mobile screens.
+     * Renders a dedicated sideways tile SVG (viewBox="0 0 132 106") for open melds (Pon / Chi / Minkan).
+     * Uses the exact 128x96 rotated face of the upright 96x128 tile and rotates the inner artwork
+     * around the exact face coordinates via `<g transform="translate(0, 100) rotate(-90)">`.
      */
     function renderSidewaysTileSVG(tileIdx) {
       // Extract only the inner face artwork (excluding the upright 3D outer rect layers)
@@ -540,11 +537,11 @@
         .replace(/<rect x="2" y="2"[^>]*\/>/, '');
 
       return `
-        <svg viewBox="0 0 138 100" class="w-full h-full select-none">
-          <rect x="2" y="6" width="134" height="92" rx="11" fill="#cbd5e1" />
-          <rect x="2" y="3.5" width="134" height="92" rx="11" fill="#f59e0b" />
-          <rect x="2" y="2" width="134" height="90" rx="11" fill="#ffffff" stroke="#64748b" stroke-width="3" />
-          <g transform="translate(19, 97) rotate(-90)">
+        <svg viewBox="0 0 132 106" class="w-full h-full select-none">
+          <rect x="2" y="6" width="128" height="98" rx="11" fill="#cbd5e1" />
+          <rect x="2" y="3.5" width="128" height="98" rx="11" fill="#f59e0b" />
+          <rect x="2" y="2" width="128" height="96" rx="11" fill="#ffffff" stroke="#64748b" stroke-width="3" />
+          <g transform="translate(0, 100) rotate(-90)">
             ${innerArtwork}
           </g>
         </svg>
